@@ -1,0 +1,50 @@
+Sun Aug 30 22:36:44 2026    cs336_basics/reports/profiles/baseline_p1.prof
+
+         5508156 function calls (5506312 primitive calls) in 4.260 seconds
+
+   Ordered by: cumulative time
+   List reduced from 1381 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    109/1    0.002    0.000    4.260    4.260 {built-in method builtins.exec}
+        1    0.000    0.000    4.260    4.260 <string>:1(<module>)
+        1    0.000    0.000    4.260    4.260 <frozen runpy>:201(run_module)
+        1    0.000    0.000    4.145    4.145 <frozen runpy>:65(_run_code)
+        1    0.000    0.000    4.145    4.145 benchmark_bpe.py:1(<module>)
+        1    0.000    0.000    3.937    3.937 benchmark_bpe.py:278(main)
+        1    0.025    0.025    3.936    3.936 benchmark_bpe.py:41(run_worker)
+        1    2.433    2.433    3.908    3.908 legacy_train_bpe.py:70(train_bpe_legacy)
+        1    0.671    0.671    0.972    0.972 legacy_train_bpe.py:27(_legacy_pre_token)
+   130/11    0.001    0.000    0.312    0.028 <frozen importlib._bootstrap>:1349(_find_and_load)
+   130/11    0.000    0.000    0.312    0.028 <frozen importlib._bootstrap>:1304(_find_and_load_unlocked)
+       11    0.000    0.000    0.294    0.027 __init__.py:1(<module>)
+   120/12    0.000    0.000    0.282    0.023 <frozen importlib._bootstrap>:911(_load_unlocked)
+    88/11    0.000    0.000    0.281    0.026 <frozen importlib._bootstrap_external>:993(exec_module)
+   277/23    0.000    0.000    0.267    0.012 <frozen importlib._bootstrap>:480(_call_with_frames_removed)
+     20/7    0.000    0.000    0.190    0.027 {built-in method builtins.__import__}
+      471    0.176    0.000    0.176    0.000 {built-in method posix.stat}
+  1263173    0.165    0.000    0.165    0.000 {method 'encode' of 'str' objects}
+      452    0.000    0.000    0.161    0.000 <frozen importlib._bootstrap_external>:140(_path_stat)
+    41038    0.012    0.000    0.158    0.000 heap.py:78(pop)
+      131    0.001    0.000    0.154    0.001 <frozen importlib._bootstrap>:1240(_find_spec)
+      109    0.000    0.000    0.152    0.001 <frozen importlib._bootstrap_external>:1524(find_spec)
+      109    0.000    0.000    0.152    0.001 <frozen importlib._bootstrap_external>:1495(_get_spec)
+    41038    0.071    0.000    0.144    0.000 {built-in method _heapq.heappop}
+      202    0.002    0.000    0.142    0.001 <frozen importlib._bootstrap_external>:1597(find_spec)
+  1263131    0.129    0.000    0.129    0.000 {method 'group' of '_regex.Match' objects}
+1552949/1552703    0.116    0.000    0.116    0.000 {built-in method builtins.len}
+    77606    0.072    0.000    0.115    0.000 heap.py:64(push)
+        1    0.000    0.000    0.115    0.115 <frozen runpy>:105(_get_module_details)
+    48/28    0.000    0.000    0.101    0.004 <frozen importlib._bootstrap>:1390(_handle_fromlist)
+       89    0.001    0.000    0.092    0.001 <frozen importlib._bootstrap_external>:1066(get_code)
+   771481    0.086    0.000    0.086    0.000 heap.py:15(__lt__)
+        1    0.000    0.000    0.063    0.063 legacy_train_bpe.py:1(<module>)
+       89    0.000    0.000    0.054    0.001 <frozen importlib._bootstrap_external>:1187(get_data)
+      149    0.000    0.000    0.049    0.000 <frozen importlib._bootstrap_external>:150(_path_is_mode_type)
+      136    0.000    0.000    0.044    0.000 <frozen importlib._bootstrap_external>:159(_path_isfile)
+        1    0.000    0.000    0.038    0.038 pathlib.py:1(<module>)
+    77606    0.020    0.000    0.033    0.000 {built-in method _heapq.heappush}
+        1    0.000    0.000    0.033    0.033 <frozen importlib._bootstrap>:1171(exec_module)
+        1    0.000    0.000    0.033    0.033 <frozen ntpath>:1(<module>)
+
+

@@ -1,0 +1,88 @@
+{
+  "configuration": {
+    "input": "E:\\develop\\code\\CS336\\assignment1-basics\\tests\\fixtures\\tinystories_sample_5M.txt",
+    "input_bytes": 5242880,
+    "vocab_size": 1000,
+    "special_tokens": [
+      "<|endoftext|>"
+    ],
+    "process_counts": [
+      1
+    ],
+    "repeat": 1
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:21:58) [MSC v.1929 64 bit (AMD64)]",
+    "cpu_count": 20
+  },
+  "results": [
+    {
+      "artifact_sha256": "adfb849561a427fe2f1ec55e4adc4444441ee31076f0ab5ee998c4be517cd8f8",
+      "implementation": "baseline",
+      "merge_entries": 743,
+      "metrics": {
+        "affected_word_updates": 33141,
+        "chunk_count": 1,
+        "heap_pushes": 78402,
+        "heap_rebuilds": 0,
+        "initial_pair_types": 796,
+        "input_bytes": 5242880,
+        "merges_completed": 743,
+        "pair_initialization_seconds": 3.356530599994585,
+        "pair_merge_seconds": 0.42990390000340994,
+        "pretokenization_seconds": 0.6431511999981012,
+        "stale_heap_pops": 40295,
+        "total_pretokens": 1263131,
+        "total_seconds": 4.429675199993653,
+        "unique_pretokens": 8126,
+        "worker_result_items": 1263131
+      },
+      "processes": 1,
+      "vocab_entries": 1000,
+      "wall_seconds": 4.701168600004166,
+      "peak_rss_bytes": 134791168,
+      "repeat": 1
+    },
+    {
+      "artifact_sha256": "adfb849561a427fe2f1ec55e4adc4444441ee31076f0ab5ee998c4be517cd8f8",
+      "implementation": "optimized",
+      "merge_entries": 743,
+      "metrics": {
+        "affected_word_updates": 28249,
+        "chunk_count": 1,
+        "heap_pushes": 15561,
+        "heap_rebuilds": 0,
+        "initial_pair_types": 796,
+        "input_bytes": 5242880,
+        "merges_completed": 743,
+        "pair_initialization_seconds": 0.040532099999836646,
+        "pair_merge_seconds": 0.29826860000321176,
+        "pretokenization_seconds": 0.8881986000051256,
+        "stale_heap_pops": 2925,
+        "total_pretokens": 1263131,
+        "total_seconds": 1.2270810000045458,
+        "unique_pretokens": 8126,
+        "worker_result_items": 8126
+      },
+      "processes": 1,
+      "vocab_entries": 1000,
+      "wall_seconds": 1.4823335999972187,
+      "peak_rss_bytes": 53735424,
+      "repeat": 1
+    }
+  ],
+  "summary": {
+    "1": {
+      "baseline_median_wall_seconds": 4.701168600004166,
+      "optimized_median_wall_seconds": 1.4823335999972187,
+      "runtime_improvement_percent": 68.4688,
+      "baseline_median_peak_rss_bytes": 134791168.0,
+      "optimized_median_peak_rss_bytes": 53735424.0,
+      "peak_rss_reduction_percent": 60.1343,
+      "baseline_median_worker_result_items": 1263131.0,
+      "optimized_median_worker_result_items": 8126.0,
+      "worker_result_item_reduction_percent": 99.3567
+    }
+  }
+}

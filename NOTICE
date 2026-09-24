@@ -1,0 +1,22 @@
+LMForge source provenance
+=========================
+
+LMForge incorporates source code and tests derived from Stanford University's
+CS336 Spring 2025 Assignment 1: Basics.
+
+The initial LMForge source snapshot was imported from commit
+314d731892705ac8f9606198d73b0d5168e7b846 of the local assignment1-basics
+repository. The imported snapshot also includes one non-behavioral correction:
+the indentation of the `targets` parameter in
+`cs336_basics/training/loss.py`.
+
+The following course-only or local-development files were intentionally not
+imported:
+
+- `cs336_spring2025_assignment1_basics.pdf`
+- `make_submission.sh`
+- `cs336_basics/docs/superpowers/`
+- the source repository's `.gitignore`
+
+The original Stanford copyright and MIT license are preserved in `LICENSE`.
+Stanford University does not endorse this derivative project.

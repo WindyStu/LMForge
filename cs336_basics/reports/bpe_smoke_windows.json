@@ -1,0 +1,86 @@
+{
+  "configuration": {
+    "input": "E:\\develop\\code\\CS336\\assignment1-basics\\tests\\fixtures\\corpus.en",
+    "input_bytes": 133027,
+    "vocab_size": 300,
+    "special_tokens": [
+      "<|endoftext|>"
+    ],
+    "process_counts": [
+      1
+    ],
+    "repeat": 1
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.11 | packaged by Anaconda, Inc. | (main, Dec 10 2025, 21:21:58) [MSC v.1929 64 bit (AMD64)]",
+    "cpu_count": 20
+  },
+  "results": [
+    {
+      "artifact_sha256": "dbac417d1905cc0df67fc4d67591a01a3fb13850df5d2cbf1910e7b6c6e8d532",
+      "implementation": "baseline",
+      "merge_entries": 43,
+      "metrics": {
+        "affected_word_updates": 8607,
+        "chunk_count": 1,
+        "heap_pushes": 26115,
+        "initial_pair_types": 1069,
+        "input_bytes": 133027,
+        "merges_completed": 43,
+        "pair_initialization_seconds": 0.07554629999503959,
+        "pair_merge_seconds": 0.04559750000771601,
+        "pretokenization_seconds": 0.014231900000595488,
+        "stale_heap_pops": 2541,
+        "total_pretokens": 27758,
+        "total_seconds": 0.13542530000268016,
+        "unique_pretokens": 4763,
+        "worker_result_items": 27758
+      },
+      "processes": 1,
+      "vocab_entries": 300,
+      "wall_seconds": 0.3421043999987887,
+      "peak_rss_bytes": 46059520,
+      "repeat": 1
+    },
+    {
+      "artifact_sha256": "dbac417d1905cc0df67fc4d67591a01a3fb13850df5d2cbf1910e7b6c6e8d532",
+      "implementation": "optimized",
+      "merge_entries": 43,
+      "metrics": {
+        "affected_word_updates": 8336,
+        "chunk_count": 1,
+        "heap_pushes": 3535,
+        "initial_pair_types": 1069,
+        "input_bytes": 133027,
+        "merges_completed": 43,
+        "pair_initialization_seconds": 0.019795100000919774,
+        "pair_merge_seconds": 0.07538629999908153,
+        "pretokenization_seconds": 0.01686449999397155,
+        "stale_heap_pops": 91,
+        "total_pretokens": 27758,
+        "total_seconds": 0.1121011999930488,
+        "unique_pretokens": 4763,
+        "worker_result_items": 4763
+      },
+      "processes": 1,
+      "vocab_entries": 300,
+      "wall_seconds": 0.317611799997394,
+      "peak_rss_bytes": 40714240,
+      "repeat": 1
+    }
+  ],
+  "summary": {
+    "1": {
+      "baseline_median_wall_seconds": 0.3421043999987887,
+      "optimized_median_wall_seconds": 0.317611799997394,
+      "runtime_improvement_percent": 7.1594,
+      "baseline_median_peak_rss_bytes": 46059520.0,
+      "optimized_median_peak_rss_bytes": 40714240.0,
+      "peak_rss_reduction_percent": 11.6052,
+      "baseline_median_worker_result_items": 27758.0,
+      "optimized_median_worker_result_items": 4763.0,
+      "worker_result_item_reduction_percent": 82.841
+    }
+  }
+}

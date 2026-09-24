@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environments and local configuration
+.venv/
+.env
+.env.*
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Runtime data and artifacts
+data/
+runs/
+checkpoints/
+wandb/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# AI tools and local agent artifacts
+.agents/
+.codex/
+.claude/
+.cursor/
+.windsurf/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+docs/superpowers/
+chat-history/
+*.prompt.md
+
+# Local cross-session records; never upload these files
+docs/PROJECT_PLAN.md
+docs/ARCHITECTURE.md
+docs/BENCHMARKS.md
+docs/DECISIONS.md
+docs/PROFILING.md
