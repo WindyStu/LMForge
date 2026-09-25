@@ -15,12 +15,12 @@ import time
 import numpy as np
 import torch
 
-from cs336_basics.nn.transformer import TransformerLM
-from cs336_basics.tokenization.tokenizer import BPE_tokenizer
-from cs336_basics.training.loss import clip_gradients, cross_entropy
-from cs336_basics.training.optimizer import AdamW
-from cs336_basics.training.prepare import tokenizer_fingerprint, tokenizer_state
-from cs336_basics.training.schedule import cosine_learning_rate_schedule
+from ..nn.transformer import TransformerLM
+from ..tokenization.tokenizer import BPE_tokenizer
+from .loss import clip_gradients, cross_entropy
+from .optimizer import AdamW
+from .prepare import tokenizer_fingerprint, tokenizer_state
+from .schedule import cosine_learning_rate_schedule
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 [project]
-name = "cs336_basics"
+name = "lmforge"
 version = "1.0.6"
-description = "CS336 Assignment 1"
+description = "A benchmark-driven, from-scratch lightweight LLM pretraining system"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -26,8 +26,8 @@ requires = ["uv_build>=0.8.3,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "cs336_basics"
-module-root = ""
+module-name = "lmforge"
+module-root = "src"
 
 [tool.uv]
 package = true

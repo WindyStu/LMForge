@@ -7,8 +7,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TypeAlias
 
-from cs336_basics.heap import Heap
-from cs336_basics.tokenization.pretokenize import PretokenizationStats, count_pretokens
+from ..heap import Heap
+from .pretokenize import PretokenizationStats, count_pretokens
 
 
 Pair: TypeAlias = tuple[bytes, bytes]

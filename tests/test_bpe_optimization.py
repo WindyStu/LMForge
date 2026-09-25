@@ -63,9 +63,9 @@ def _slow_reference(
 
 
 def test_public_bpe_optimization_api_exists() -> None:
-    train_module = importlib.import_module("cs336_basics.tokenization.train_bpe")
-    serialization_module = importlib.import_module("cs336_basics.tokenization.serialization")
-    tokenizer_module = importlib.import_module("cs336_basics.tokenization.tokenizer")
+    train_module = importlib.import_module("lmforge.tokenization.train_bpe")
+    serialization_module = importlib.import_module("lmforge.tokenization.serialization")
+    tokenizer_module = importlib.import_module("lmforge.tokenization.tokenizer")
 
     assert hasattr(train_module, "train_bpe")
     assert hasattr(train_module, "train_bpe_with_metrics")
@@ -75,7 +75,7 @@ def test_public_bpe_optimization_api_exists() -> None:
 
 
 def test_optimized_training_matches_slow_reference(tmp_path) -> None:
-    from cs336_basics.tokenization.train_bpe import train_bpe
+    from lmforge.tokenization.train_bpe import train_bpe
 
     corpus = "xaba xaba xababa<|endoftext|>aaaa aaaa\n"
     input_path = tmp_path / "corpus.txt"
@@ -98,7 +98,7 @@ def test_optimized_training_matches_slow_reference(tmp_path) -> None:
 
 
 def test_parallel_training_matches_single_process(tmp_path) -> None:
-    from cs336_basics.tokenization.train_bpe import train_bpe
+    from lmforge.tokenization.train_bpe import train_bpe
 
     input_path = tmp_path / "documents.txt"
     input_path.write_text(
@@ -117,8 +117,8 @@ def test_parallel_training_matches_single_process(tmp_path) -> None:
 
 
 def test_benchmark_baseline_and_optimized_are_equivalent(tmp_path) -> None:
-    from cs336_basics.tokenization.legacy_train_bpe import train_bpe_legacy
-    from cs336_basics.tokenization.train_bpe import train_bpe
+    from lmforge.tokenization.legacy_train_bpe import train_bpe_legacy
+    from lmforge.tokenization.train_bpe import train_bpe
 
     input_path = tmp_path / "corpus.txt"
     input_path.write_text("abab ababa cab<|endoftext|>abab\n", encoding="utf-8")
@@ -131,7 +131,7 @@ def test_benchmark_baseline_and_optimized_are_equivalent(tmp_path) -> None:
 
 
 def test_serialization_roundtrip_preserves_arbitrary_bytes(tmp_path) -> None:
-    from cs336_basics.tokenization.serialization import (
+    from lmforge.tokenization.serialization import (
         load_tokenizer_files,
         save_tokenizer_files,
     )
@@ -147,8 +147,8 @@ def test_serialization_roundtrip_preserves_arbitrary_bytes(tmp_path) -> None:
 
 
 def test_tokenizer_from_files_can_encode_and_decode(tmp_path) -> None:
-    from cs336_basics.tokenization.serialization import save_tokenizer_files
-    from cs336_basics.tokenization.tokenizer import BPE_tokenizer
+    from lmforge.tokenization.serialization import save_tokenizer_files
+    from lmforge.tokenization.tokenizer import BPE_tokenizer
 
     vocab = {index: bytes([index]) for index in range(256)}
     vocab[256] = b"ab"
@@ -169,7 +169,7 @@ def test_tokenizer_from_files_can_encode_and_decode(tmp_path) -> None:
 
 
 def test_benchmark_summary_reports_runtime_and_memory_percentages() -> None:
-    from cs336_basics.tokenization.benchmark_bpe import summarize_results
+    from lmforge.tokenization.benchmark_bpe import summarize_results
 
     results = [
         {
@@ -196,7 +196,7 @@ def test_benchmark_summary_reports_runtime_and_memory_percentages() -> None:
 
 
 def test_wsl_profile_script_uses_scalene_23_arguments() -> None:
-    script_path = Path(__file__).parents[1] / "run_bpe_profile_wsl.sh"
+    script_path = Path(__file__).parents[1] / "scripts" / "run_bpe_profile_wsl.sh"
     script = script_path.read_text(encoding="utf-8")
 
     assert "--cpu \\" not in script
@@ -207,7 +207,7 @@ def test_wsl_profile_script_uses_scalene_23_arguments() -> None:
 
 
 def test_wsl_profile_script_uses_scalene_run_subcommand() -> None:
-    script_path = Path(__file__).parents[1] / "run_bpe_profile_wsl.sh"
+    script_path = Path(__file__).parents[1] / "scripts" / "run_bpe_profile_wsl.sh"
     script = script_path.read_text(encoding="utf-8")
 
     assert "uv run scalene \\\n    run \\" in script

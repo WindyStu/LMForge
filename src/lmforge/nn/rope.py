@@ -58,4 +58,4 @@ class RotaryPositionalEmbedding(nn.Module):
         out[..., 0::2] = out_even
         out[..., 1::2] = out_odd
 
-        return out
+        return out

@@ -7,8 +7,8 @@ CS336 Spring 2025 Assignment 1: Basics.
 The initial LMForge source snapshot was imported from commit
 314d731892705ac8f9606198d73b0d5168e7b846 of the local assignment1-basics
 repository. The imported snapshot also includes one non-behavioral correction:
-the indentation of the `targets` parameter in
-`cs336_basics/training/loss.py`.
+the indentation of the `targets` parameter in the original
+`cs336_basics/training/loss.py`, now located at `src/lmforge/training/loss.py`.
 
 The following course-only or local-development files were intentionally not
 imported:

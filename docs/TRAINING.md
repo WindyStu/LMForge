@@ -9,16 +9,16 @@
 ```bash
 cd /mnt/e/develop/code/CS336/assignment1-basics
 uv run python - <<'PY'
-from cs336_basics.tokenization.train_bpe import train_bpe
-from cs336_basics.tokenization.serialization import save_tokenizer_files
+from lmforge.tokenization.train_bpe import train_bpe
+from lmforge.tokenization.serialization import save_tokenizer_files
 
 vocab, merges = train_bpe(
     "tests/fixtures/tinystories_sample_5M.txt", 1000,
     ["<|endoftext|>"], num_processes=1,
 )
 save_tokenizer_files(vocab, merges,
-    "cs336_basics/artifacts/demo-tokenizer/vocab.json",
-    "cs336_basics/artifacts/demo-tokenizer/merges.json")
+    "artifacts/demo-tokenizer/vocab.json",
+    "artifacts/demo-tokenizer/merges.json")
 PY
 ```
 
@@ -27,18 +27,18 @@ PY
 ## 2. 文本转换为 token 数组
 
 ```bash
-uv run python -m cs336_basics.training.prepare \
+uv run python -m lmforge.training.prepare \
   --input tests/fixtures/tinystories_sample_5M.txt \
-  --output cs336_basics/artifacts/demo-data/train.npy \
-  --vocab cs336_basics/artifacts/demo-tokenizer/vocab.json \
-  --merges cs336_basics/artifacts/demo-tokenizer/merges.json \
+  --output artifacts/demo-data/train.npy \
+  --vocab artifacts/demo-tokenizer/vocab.json \
+  --merges artifacts/demo-tokenizer/merges.json \
   --special-token '<|endoftext|>'
 
-uv run python -m cs336_basics.training.prepare \
+uv run python -m lmforge.training.prepare \
   --input tests/fixtures/tinystories_sample.txt \
-  --output cs336_basics/artifacts/demo-data/valid.npy \
-  --vocab cs336_basics/artifacts/demo-tokenizer/vocab.json \
-  --merges cs336_basics/artifacts/demo-tokenizer/merges.json \
+  --output artifacts/demo-data/valid.npy \
+  --vocab artifacts/demo-tokenizer/vocab.json \
+  --merges artifacts/demo-tokenizer/merges.json \
   --special-token '<|endoftext|>'
 ```
 
@@ -50,18 +50,18 @@ uv run python -m cs336_basics.training.prepare \
 
 ## 3. 训练
 
-提供的 `cs336_basics/training/configs/small.json` 是 2 层、128 hidden、128 context 的小模型配置。有效 batch size 为 `batch_size × grad_accum_steps`，默认 `2 × 8 = 16` 个窗口。
+提供的 `configs/tinystories/small.json` 是 2 层、128 hidden、128 context 的小模型配置。有效 batch size 为 `batch_size × grad_accum_steps`，默认 `2 × 8 = 16` 个窗口。
 
 先进行 5 步 CPU 流程检查：
 
 ```bash
-uv run python -m cs336_basics.training.train \
-  --config cs336_basics/training/configs/small.json \
-  --train-data cs336_basics/artifacts/demo-data/train.npy \
-  --val-data cs336_basics/artifacts/demo-data/valid.npy \
-  --output-dir cs336_basics/artifacts/demo-run \
-  --vocab cs336_basics/artifacts/demo-tokenizer/vocab.json \
-  --merges cs336_basics/artifacts/demo-tokenizer/merges.json \
+uv run python -m lmforge.training.train \
+  --config configs/tinystories/small.json \
+  --train-data artifacts/demo-data/train.npy \
+  --val-data artifacts/demo-data/valid.npy \
+  --output-dir artifacts/demo-run \
+  --vocab artifacts/demo-tokenizer/vocab.json \
+  --merges artifacts/demo-tokenizer/merges.json \
   --special-token '<|endoftext|>' \
   --device cpu --max-steps 5
 ```
@@ -89,12 +89,12 @@ uv run python -m cs336_basics.training.train \
 从上述 5 步接着训练到总计 1000 步：
 
 ```bash
-uv run python -m cs336_basics.training.train \
-  --config cs336_basics/training/configs/small.json \
-  --train-data cs336_basics/artifacts/demo-data/train.npy \
-  --val-data cs336_basics/artifacts/demo-data/valid.npy \
-  --output-dir cs336_basics/artifacts/demo-run \
-  --resume cs336_basics/artifacts/demo-run/last.pt \
+uv run python -m lmforge.training.train \
+  --config configs/tinystories/small.json \
+  --train-data artifacts/demo-data/train.npy \
+  --val-data artifacts/demo-data/valid.npy \
+  --output-dir artifacts/demo-run \
+  --resume artifacts/demo-run/last.pt \
   --device cpu --max-steps 1000
 ```
 
@@ -107,8 +107,8 @@ CPU float32 测试验证了连续 4 步与 2 步后恢复到 4 步得到完全�
 ## 5. 模型 decode / 生成文本
 
 ```bash
-uv run python -m cs336_basics.training.generate \
-  --checkpoint cs336_basics/artifacts/demo-run/last.pt \
+uv run python -m lmforge.training.generate \
+  --checkpoint artifacts/demo-run/last.pt \
   --prompt 'Once upon a time' \
   --max-new-tokens 128 \
   --temperature 0.8 --top-p 0.9 --seed 42 --device cpu
@@ -135,7 +135,7 @@ uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_av
 从仓库根目录运行：
 
 ```bash
-uv run pytest cs336_basics/training/tests -q
+uv run pytest tests/test_workflow.py -q
 uv run pytest tests/test_model.py tests/test_nn_utils.py tests/test_data.py tests/test_optimizer.py tests/test_serialization.py -q
 ```
 

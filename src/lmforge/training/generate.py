@@ -6,8 +6,8 @@ import math
 
 import torch
 
-from cs336_basics.nn.transformer import TransformerLM
-from cs336_basics.tokenization.tokenizer import BPE_tokenizer
+from ..nn.transformer import TransformerLM
+from ..tokenization.tokenizer import BPE_tokenizer
 
 
 def sampling_probs(logits, *, temperature=1.0, top_p=1.0):

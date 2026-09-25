@@ -39,4 +39,4 @@ def get_batch(
         dtype=torch.long,
     )
 
-    return inputs, label
+    return inputs, label

@@ -10,7 +10,7 @@ import tempfile
 
 import numpy as np
 
-from cs336_basics.tokenization.tokenizer import BPE_tokenizer
+from ..tokenization.tokenizer import BPE_tokenizer
 
 
 def tokenizer_state(tokenizer):

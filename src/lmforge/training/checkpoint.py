@@ -45,4 +45,4 @@ def load_checkpoint(
     model.load_state_dict(state_dict_load["model"])
     optimizer.load_state_dict(state_dict_load["optimizer"])
 
-    return state_dict_load["iteration"]
+    return state_dict_load["iteration"]

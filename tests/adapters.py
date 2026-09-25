@@ -18,33 +18,33 @@ import regex as re
 from collections import defaultdict, Counter
 import numpy as np
 
-from cs336_basics.heap import Heap
-from cs336_basics.nn.attention import (
+from lmforge.heap import Heap
+from lmforge.nn.attention import (
     MultiHeadSelfAttention,
     scaled_dot_product_attention,
 )
-from cs336_basics.nn.ffn import SwiGLU, silu
-from cs336_basics.nn.linear import Embedding, Linear
-from cs336_basics.nn.norm import RMSNorm
-from cs336_basics.nn.rope import RotaryPositionalEmbedding
-from cs336_basics.nn.transformer import (
+from lmforge.nn.ffn import SwiGLU, silu
+from lmforge.nn.linear import Embedding, Linear
+from lmforge.nn.norm import RMSNorm
+from lmforge.nn.rope import RotaryPositionalEmbedding
+from lmforge.nn.transformer import (
     TransformerBlock,
     TransformerLM,
 )
-from cs336_basics.pretokenization_example import find_chunk_boundaries
-from cs336_basics.tokenizer import BPE_tokenizer
-from cs336_basics.training.checkpoint import (
+from lmforge.pretokenization_example import find_chunk_boundaries
+from lmforge.tokenization.tokenizer import BPE_tokenizer
+from lmforge.training.checkpoint import (
     load_checkpoint,
     save_checkpoint,
 )
-from cs336_basics.training.data import get_batch
-from cs336_basics.training.loss import (
+from lmforge.training.data import get_batch
+from lmforge.training.loss import (
     clip_gradients,
     cross_entropy,
     softmax,
 )
-from cs336_basics.training.optimizer import AdamW
-from cs336_basics.training.schedule import (
+from lmforge.training.optimizer import AdamW
+from lmforge.training.schedule import (
     cosine_learning_rate_schedule,
 )
 
@@ -765,7 +765,7 @@ def pre_token(
     args: tuple[str, list[str]]
 ) -> list[bytes]:
     """ use for multi-processing situation .
-    
+
     Args:
         args: include blow
         input_chunk(str): a set of strs for this process

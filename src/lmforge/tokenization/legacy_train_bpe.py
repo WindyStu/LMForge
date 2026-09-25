@@ -1,7 +1,7 @@
 """Frozen pre-optimization BPE path used only as a benchmark baseline.
 
 This intentionally materializes decoded chunks and ``list[bytes]`` worker
-results.  Keep application code on :mod:`cs336_basics.tokenization.train_bpe`.
+results.  Keep application code on :mod:`lmforge.tokenization.train_bpe`.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from typing import TypeAlias
 
 import regex as re
 
-from cs336_basics.heap import Heap
-from cs336_basics.pretokenization_example import find_chunk_boundaries
-from cs336_basics.tokenization.pretokenize import PRETOKEN_PATTERN
+from ..heap import Heap
+from ..pretokenization_example import find_chunk_boundaries
+from .pretokenize import PRETOKEN_PATTERN
 
 
 PathLike: TypeAlias = str | os.PathLike[str]

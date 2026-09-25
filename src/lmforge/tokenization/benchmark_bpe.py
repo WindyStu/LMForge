@@ -17,8 +17,8 @@ from typing import Any
 
 import psutil
 
-from cs336_basics.tokenization.legacy_train_bpe import train_bpe_legacy
-from cs336_basics.tokenization.train_bpe import train_bpe_with_metrics
+from .legacy_train_bpe import train_bpe_legacy
+from .train_bpe import train_bpe_with_metrics
 
 
 Result = dict[str, Any]
@@ -101,7 +101,7 @@ def _run_isolated(
     command = [
         sys.executable,
         "-m",
-        "cs336_basics.tokenization.benchmark_bpe",
+        "lmforge.tokenization.benchmark_bpe",
         "--worker",
         "--implementation",
         implementation,

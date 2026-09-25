@@ -6,8 +6,8 @@ from typing import TypeAlias
 
 import regex as re
 
-from cs336_basics.tokenization.pretokenize import PRETOKEN_PATTERN
-from cs336_basics.tokenization.serialization import load_tokenizer_files
+from .pretokenize import PRETOKEN_PATTERN
+from .serialization import load_tokenizer_files
 
 
 PathLike: TypeAlias = str | os.PathLike[str]

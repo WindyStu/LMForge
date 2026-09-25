@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import torch
 
-from cs336_basics.training.loss import clip_gradients
+from lmforge.training.loss import clip_gradients
 
 
 @pytest.fixture(autouse=True)
@@ -47,7 +47,7 @@ class ScriptedLM(torch.nn.Module):
 
 
 def test_generate_crops_recent_context_and_stops_at_eos():
-    from cs336_basics.training.generate import generate
+    from lmforge.training.generate import generate
 
     model = ScriptedLM().train()
     prompt = torch.tensor([0, 1, 0, 1])
@@ -60,7 +60,7 @@ def test_generate_crops_recent_context_and_stops_at_eos():
 
 
 def test_nucleus_keeps_the_token_crossing_threshold():
-    from cs336_basics.training.generate import sampling_probs
+    from lmforge.training.generate import sampling_probs
 
     logits = torch.tensor([0.5, 0.3, 0.2]).log()
     assert torch.allclose(sampling_probs(logits, temperature=1, top_p=0.6), torch.tensor([0.625, 0.375, 0.0]))
@@ -70,10 +70,10 @@ def test_nucleus_keeps_the_token_crossing_threshold():
 
 
 def test_prepare_train_resume_and_generate(tmp_path):
-    from cs336_basics.tokenization.tokenizer import BPE_tokenizer
-    from cs336_basics.training.prepare import prepare_tokens
-    from cs336_basics.training.train import ModelConfig, TrainConfig, train
-    from cs336_basics.training.generate import load_model, generate_text
+    from lmforge.tokenization.tokenizer import BPE_tokenizer
+    from lmforge.training.prepare import prepare_tokens
+    from lmforge.training.train import ModelConfig, TrainConfig, train
+    from lmforge.training.generate import load_model, generate_text
 
     tok = BPE_tokenizer({i: bytes([i]) for i in range(256)}, [], ['<|endoftext|>'])
     text_path = tmp_path / 'tiny.txt'
@@ -103,7 +103,7 @@ def test_prepare_train_resume_and_generate(tmp_path):
 
 
 def test_attention_without_mask_and_device():
-    from cs336_basics.nn.attention import scaled_dot_product_attention
+    from lmforge.nn.attention import scaled_dot_product_attention
 
     q, k, v = (torch.randn(2, 3, 4) for _ in range(3))
     expected = torch.softmax(q @ k.transpose(-2, -1) / 2, -1) @ v
@@ -111,7 +111,7 @@ def test_attention_without_mask_and_device():
 
 
 def test_decode_utf8_joins_bytes_before_decoding():
-    from cs336_basics.tokenization.tokenizer import BPE_tokenizer
+    from lmforge.tokenization.tokenizer import BPE_tokenizer
 
     tok = BPE_tokenizer({i: bytes([i]) for i in range(256)}, [])
     assert tok.decode(list('你好🙂'.encode('utf-8'))) == '你好🙂'
@@ -122,7 +122,7 @@ def test_decode_utf8_joins_bytes_before_decoding():
 
 
 def test_training_rejects_invalid_data_and_config(tmp_path):
-    from cs336_basics.training.train import ModelConfig, TrainConfig, train
+    from lmforge.training.train import ModelConfig, TrainConfig, train
 
     cfg = TrainConfig(model=ModelConfig(vocab_size=8, context_length=4), max_steps=1)
     with pytest.raises(ValueError, match='context_length'):
@@ -134,7 +134,7 @@ def test_training_rejects_invalid_data_and_config(tmp_path):
 
 
 def test_accumulation_matches_one_larger_batch(tmp_path):
-    from cs336_basics.training.train import ModelConfig, TrainConfig, train
+    from lmforge.training.train import ModelConfig, TrainConfig, train
 
     data = np.arange(80) % 8
     cfg = TrainConfig(model=ModelConfig(vocab_size=8, context_length=4, d_model=8,
@@ -147,7 +147,7 @@ def test_accumulation_matches_one_larger_batch(tmp_path):
 
 
 def test_cli_prepare_train_resume_generate(tmp_path):
-    from cs336_basics.tokenization.serialization import save_tokenizer_files
+    from lmforge.tokenization.serialization import save_tokenizer_files
 
     vocab_path, merges_path = tmp_path / 'vocab.json', tmp_path / 'merges.json'
     save_tokenizer_files({i: bytes([i]) for i in range(256)}, [], vocab_path, merges_path)
@@ -163,7 +163,7 @@ def test_cli_prepare_train_resume_generate(tmp_path):
     env = dict(os.environ, OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', PYTHONIOENCODING='utf-8')
 
     def command(module, *arguments):
-        result = subprocess.run([sys.executable, '-m', 'cs336_basics.training.' + module,
+        result = subprocess.run([sys.executable, '-m', 'lmforge.training.' + module,
             *map(str, arguments)], cwd=root, env=env, capture_output=True, text=True,
             encoding='utf-8', timeout=90)
         assert result.returncode == 0, result.stdout + result.stderr
@@ -182,8 +182,8 @@ def test_cli_prepare_train_resume_generate(tmp_path):
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires a CUDA device')
 def test_cuda_fp16_training_and_decoding(tmp_path):
-    from cs336_basics.training.train import ModelConfig, TrainConfig, train
-    from cs336_basics.training.generate import load_model, generate
+    from lmforge.training.train import ModelConfig, TrainConfig, train
+    from lmforge.training.generate import load_model, generate
 
     cfg = TrainConfig(model=ModelConfig(vocab_size=8, context_length=4, d_model=8,
         num_heads=2, num_layers=1, d_ff=16), max_steps=2, batch_size=1,

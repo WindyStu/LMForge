@@ -5,8 +5,7 @@ LMForge is a benchmark-driven, from-scratch lightweight LLM pretraining system.
 This initial source baseline is derived from Stanford University's CS336 Spring
 2025 Assignment 1 at commit `314d731892705ac8f9606198d73b0d5168e7b846`.
 See [NOTICE](./NOTICE) for provenance and [LICENSE](./LICENSE) for license terms.
-The package retains its original `cs336_basics` name during this import task;
-the LMForge package migration is a separate Phase 1 change.
+The installable Python package is named `lmforge` and uses a `src` layout.
 
 ## Setup
 

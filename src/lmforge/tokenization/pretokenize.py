@@ -16,7 +16,7 @@ from typing import TypeAlias
 
 import regex as re
 
-from cs336_basics.pretokenization_example import find_chunk_boundaries
+from ..pretokenization_example import find_chunk_boundaries
 
 
 PRETOKEN_PATTERN = re.compile(

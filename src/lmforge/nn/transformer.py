@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-from cs336_basics.nn.attention import MultiHeadSelfAttention
-from cs336_basics.nn.ffn import SwiGLU
-from cs336_basics.nn.linear import Embedding, Linear
-from cs336_basics.nn.norm import RMSNorm
-from cs336_basics.nn.rope import RotaryPositionalEmbedding
+from .attention import MultiHeadSelfAttention
+from .ffn import SwiGLU
+from .linear import Embedding, Linear
+from .norm import RMSNorm
+from .rope import RotaryPositionalEmbedding
 from torch import Tensor
 
 class TransformerBlock(nn.Module):

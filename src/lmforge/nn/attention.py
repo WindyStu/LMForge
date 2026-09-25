@@ -5,8 +5,8 @@ import torch.nn as nn
 from einops import rearrange, einsum
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
-from cs336_basics.nn.rope import RotaryPositionalEmbedding
-from cs336_basics.nn.linear import Linear
+from .linear import Linear
+from .rope import RotaryPositionalEmbedding
 
 
 def scaled_dot_product_attention(

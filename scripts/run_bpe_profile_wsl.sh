@@ -2,9 +2,9 @@
 set -euo pipefail
 export PYTHONHASHSEED=0
 
-# Run this script from the assignment repository root inside WSL.
+# Run this script from the LMForge repository root inside WSL.
 corpus_path="tests/fixtures/tinystories_sample_5M.txt"
-report_dir="cs336_basics/reports"
+report_dir="reports"
 profile_dir="${report_dir}/profiles"
 
 mkdir -p "${profile_dir}"
@@ -17,7 +17,7 @@ mkdir -p "${profile_dir}"
   free -h
 } > "${report_dir}/wsl_environment.txt"
 
-uv run python -m cs336_basics.tokenization.benchmark_bpe \
+uv run python -m lmforge.tokenization.benchmark_bpe \
   --input "${corpus_path}" \
   --vocab-size 1000 \
   --special-token '<|endoftext|>' \
@@ -28,7 +28,7 @@ uv run python -m cs336_basics.tokenization.benchmark_bpe \
 for implementation in baseline optimized; do
   uv run python -m cProfile \
     -o "${profile_dir}/${implementation}_p1.prof" \
-    -m cs336_basics.tokenization.benchmark_bpe \
+    -m lmforge.tokenization.benchmark_bpe \
     --worker \
     --implementation "${implementation}" \
     --input "${corpus_path}" \
@@ -43,7 +43,7 @@ for implementation in baseline optimized; do
   uv run scalene \
     run \
     -o "${profile_dir}/${implementation}_p1_scalene.json" \
-    cs336_basics/tokenization/benchmark_bpe.py \
+    src/lmforge/tokenization/benchmark_bpe.py \
     --- \
     --worker \
     --implementation "${implementation}" \

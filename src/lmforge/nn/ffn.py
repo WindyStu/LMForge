@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from cs336_basics.nn.linear import Linear
+from .linear import Linear
 from einops import rearrange, einsum
 
 def silu(x: torch.Tensor) -> torch.Tensor:
