@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import random
@@ -15,6 +14,7 @@ import time
 import numpy as np
 import torch
 
+from ..config import ModelConfig, TrainConfig
 from ..nn.transformer import TransformerLM
 from ..tokenization.tokenizer import BPE_tokenizer
 from .loss import clip_gradients, cross_entropy
@@ -22,83 +22,14 @@ from .optimizer import AdamW
 from .prepare import tokenizer_fingerprint, tokenizer_state
 from .schedule import cosine_learning_rate_schedule
 
-
-@dataclass(frozen=True)
-class ModelConfig:
-    vocab_size: int = 1000
-    context_length: int = 128
-    d_model: int = 128
-    num_layers: int = 2
-    num_heads: int = 4
-    d_ff: int = 352
-    rope_theta: float = 10000.0
-
-
-@dataclass(frozen=True)
-class TrainConfig:
-    model: ModelConfig = field(default_factory=ModelConfig)
-    max_steps: int = 1000
-    batch_size: int = 4
-    grad_accum_steps: int = 4
-    max_lr: float = 3e-4
-    min_lr: float = 3e-5
-    warmup_steps: int = 50
-    lr_decay_steps: int = 1000
-    weight_decay: float = 0.1
-    beta1: float = 0.9
-    beta2: float = 0.95
-    eps: float = 1e-8
-    max_grad_norm: float = 1.0
-    eval_interval: int = 100
-    eval_batches: int = 10
-    save_interval: int = 100
-    log_interval: int = 10
-    seed: int = 42
-    device: str = 'cpu'
-    precision: str = 'float32'
-
-    @classmethod
-    def from_dict(cls, values):
-        values = dict(values)
-        values['model'] = ModelConfig(**values.get('model', {}))
-        return cls(**values)
-
-    def validate(self):
-        m = self.model
-        integers = [m.vocab_size, m.context_length, m.d_model, m.num_layers, m.num_heads,
-                    m.d_ff, self.max_steps, self.batch_size, self.grad_accum_steps,
-                    self.lr_decay_steps, self.eval_interval, self.eval_batches,
-                    self.save_interval, self.log_interval]
-        if any(type(v) is not int or v <= 0 for v in integers):
-            raise ValueError('model dimensions, batch sizes, steps and intervals must be positive integers')
-        if m.d_model % m.num_heads or (m.d_model // m.num_heads) % 2:
-            raise ValueError('d_model must be divisible by num_heads with an even RoPE head dimension')
-        if not math.isfinite(m.rope_theta) or m.rope_theta <= 0:
-            raise ValueError('rope_theta must be positive and finite')
-        if not 0 <= self.warmup_steps < self.lr_decay_steps:
-            raise ValueError('require 0 <= warmup_steps < lr_decay_steps')
-        numeric = [self.max_lr, self.min_lr, self.weight_decay, self.eps, self.max_grad_norm]
-        if not all(math.isfinite(v) for v in numeric):
-            raise ValueError('training hyperparameters must be finite')
-        if not 0 <= self.min_lr <= self.max_lr or self.max_lr <= 0:
-            raise ValueError('require 0 <= min_lr <= max_lr and max_lr > 0')
-        if self.weight_decay < 0 or self.eps <= 0 or self.max_grad_norm <= 0:
-            raise ValueError('invalid weight_decay, eps or max_grad_norm')
-        if not (0 <= self.beta1 < 1 and 0 <= self.beta2 < 1):
-            raise ValueError('AdamW betas must be in [0, 1)')
-        if self.precision not in ('float32', 'float16', 'bfloat16'):
-            raise ValueError('precision must be float32, float16 or bfloat16')
-        device = torch.device(self.device)
-        if device.type not in ('cpu', 'cuda'):
-            raise ValueError('supported devices: cpu and cuda')
-        if device.type == 'cuda' and not torch.cuda.is_available():
-            raise ValueError('CUDA requested, but this Python environment has no available CUDA device')
-        if self.precision != 'float32' and device.type != 'cuda':
-            raise ValueError('mixed precision is supported only on CUDA; use float32 on CPU')
-        if device.type == 'cuda' and self.precision == 'bfloat16':
-            with torch.cuda.device(device):
-                if not torch.cuda.is_bf16_supported():
-                    raise ValueError('this CUDA device does not support bfloat16')
+def _validate_runtime_environment(config):
+    device = torch.device(config.device)
+    if device.type == 'cuda' and not torch.cuda.is_available():
+        raise ValueError('CUDA requested, but this Python environment has no available CUDA device')
+    if device.type == 'cuda' and config.precision == 'bfloat16':
+        with torch.cuda.device(device):
+            if not torch.cuda.is_bf16_supported():
+                raise ValueError('this CUDA device does not support bfloat16')
 
 
 def _validate_data(data, config):
@@ -171,6 +102,7 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
     float32 resume restores RNG and optimizer states for reproducible continuation.
     """
     config.validate()
+    _validate_runtime_environment(config)
     data_hashes = {'train': _validate_data(train_tokens, config),
                    'validation': _validate_data(val_tokens, config) if val_tokens is not None else None}
     if tokenizer is not None and set(tokenizer.vocab) != set(range(config.model.vocab_size)):
