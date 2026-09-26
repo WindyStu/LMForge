@@ -1,7 +1,6 @@
 """Stream text records to a memory-mappable token .npy file."""
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import os
@@ -9,8 +8,6 @@ from pathlib import Path
 import tempfile
 
 import numpy as np
-
-from ..tokenization.tokenizer import BPE_tokenizer
 
 
 def tokenizer_state(tokenizer):
@@ -65,16 +62,10 @@ def prepare_tokens(input_path, output_path, tokenizer):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input', required=True, type=Path)
-    parser.add_argument('--output', required=True, type=Path)
-    parser.add_argument('--vocab', required=True, type=Path)
-    parser.add_argument('--merges', required=True, type=Path)
-    parser.add_argument('--special-token', action='append', default=[])
-    args = parser.parse_args()
-    tokenizer = BPE_tokenizer.from_files(args.vocab, args.merges, args.special_token)
-    print(json.dumps(prepare_tokens(args.input, args.output, tokenizer)))
+    from ..cli import legacy_main
+
+    return legacy_main("prepare")
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

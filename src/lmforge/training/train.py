@@ -1,7 +1,6 @@
 """Train the assignment Transformer LM on memory-mapped token arrays."""
 from __future__ import annotations
 
-import argparse
 from dataclasses import asdict
 import hashlib
 import json
@@ -19,7 +18,7 @@ from ..nn.transformer import TransformerLM
 from ..tokenization.tokenizer import BPE_tokenizer
 from .loss import clip_gradients, cross_entropy
 from .optimizer import AdamW
-from .prepare import tokenizer_fingerprint, tokenizer_state
+from .prepare import tokenizer_state
 from .schedule import cosine_learning_rate_schedule
 
 def _validate_runtime_environment(config):
@@ -226,39 +225,10 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', required=True, type=Path)
-    parser.add_argument('--train-data', required=True, type=Path)
-    parser.add_argument('--val-data', type=Path)
-    parser.add_argument('--output-dir', required=True, type=Path)
-    parser.add_argument('--resume', type=Path)
-    parser.add_argument('--vocab', type=Path)
-    parser.add_argument('--merges', type=Path)
-    parser.add_argument('--special-token', action='append', default=[])
-    parser.add_argument('--device')
-    parser.add_argument('--max-steps', type=int)
-    args = parser.parse_args()
-    values = json.loads(args.config.read_text(encoding='utf-8'))
-    for key in ('device', 'max_steps'):
-        if getattr(args, key) is not None:
-            values[key] = getattr(args, key)
-    config = TrainConfig.from_dict(values)
-    if bool(args.vocab) != bool(args.merges):
-        parser.error('--vocab and --merges must be provided together')
-    tokenizer = (BPE_tokenizer.from_files(args.vocab, args.merges, args.special_token)
-                 if args.vocab else None)
-    if tokenizer is None and args.resume:
-        saved = torch.load(args.resume, map_location='cpu', weights_only=True).get('tokenizer')
-        tokenizer = BPE_tokenizer(**saved) if saved else None
-    for path in (args.train_data, args.val_data):
-        if path and path.with_suffix('.meta.json').exists() and tokenizer is not None:
-            metadata = json.loads(path.with_suffix('.meta.json').read_text(encoding='utf-8'))
-            if metadata['tokenizer_sha256'] != tokenizer_fingerprint(tokenizer):
-                raise ValueError(f'tokenizer does not match tokenized dataset: {path}')
-    train_tokens = np.load(args.train_data, mmap_mode='r', allow_pickle=False)
-    val_tokens = np.load(args.val_data, mmap_mode='r', allow_pickle=False) if args.val_data else None
-    train(config, train_tokens, val_tokens, args.output_dir, tokenizer=tokenizer, resume=args.resume)
+    from ..cli import legacy_main
+
+    return legacy_main("train")
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

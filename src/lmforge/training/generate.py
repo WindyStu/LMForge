@@ -1,7 +1,6 @@
 """Autoregressive decoding from a training checkpoint (temperature / top-p)."""
 from __future__ import annotations
 
-import argparse
 import math
 
 import torch
@@ -100,21 +99,10 @@ def generate_text(model, tokenizer, prompt, *, eos_token='<|endoftext|>', seed=0
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--checkpoint', required=True)
-    parser.add_argument('--prompt', default='Once upon a time')
-    parser.add_argument('--max-new-tokens', type=int, default=128)
-    parser.add_argument('--temperature', type=float, default=0.8)
-    parser.add_argument('--top-p', type=float, default=0.9)
-    parser.add_argument('--eos-token', default='<|endoftext|>')
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
-    args = parser.parse_args()
-    model, tokenizer = load_model(args.checkpoint, device=args.device)
-    print(generate_text(model, tokenizer, args.prompt, max_new_tokens=args.max_new_tokens,
-                        temperature=args.temperature, top_p=args.top_p,
-                        eos_token=args.eos_token, seed=args.seed))
+    from ..cli import legacy_main
+
+    return legacy_main("generate")
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

@@ -1,7 +1,5 @@
 import json
 from dataclasses import replace
-import os
-from pathlib import Path
 import subprocess
 import sys
 
@@ -149,38 +147,18 @@ def test_accumulation_matches_one_larger_batch(tmp_path):
         torch.testing.assert_close(large['model'][key], small['model'][key], atol=1e-6, rtol=1e-5)
 
 
-def test_cli_prepare_train_resume_generate(tmp_path):
-    from lmforge.tokenization.serialization import save_tokenizer_files
+def test_legacy_prepare_arguments_report_config_migration():
+    result = subprocess.run(
+        [sys.executable, '-m', 'lmforge.training.prepare', '--input', 'input.txt'],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        timeout=30,
+    )
 
-    vocab_path, merges_path = tmp_path / 'vocab.json', tmp_path / 'merges.json'
-    save_tokenizer_files({i: bytes([i]) for i in range(256)}, [], vocab_path, merges_path)
-    source = tmp_path / 'input.txt'
-    source.write_text('Hello world!\n' * 10, encoding='utf-8')
-    tokens = tmp_path / 'tokens.npy'
-    config = tmp_path / 'config.json'
-    config.write_text(json.dumps({'model': {'vocab_size': 257, 'context_length': 4,
-        'd_model': 8, 'num_heads': 2, 'num_layers': 1, 'd_ff': 16},
-        'max_steps': 1, 'batch_size': 1, 'grad_accum_steps': 1, 'warmup_steps': 0}), encoding='utf-8')
-    output = tmp_path / 'run'
-    root = Path(__file__).resolve().parents[3]
-    env = dict(os.environ, OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', PYTHONIOENCODING='utf-8')
-
-    def command(module, *arguments):
-        result = subprocess.run([sys.executable, '-m', 'lmforge.training.' + module,
-            *map(str, arguments)], cwd=root, env=env, capture_output=True, text=True,
-            encoding='utf-8', timeout=90)
-        assert result.returncode == 0, result.stdout + result.stderr
-        return result.stdout
-
-    command('prepare', '--input', source, '--output', tokens, '--vocab', vocab_path,
-            '--merges', merges_path, '--special-token', '<|endoftext|>')
-    command('train', '--config', config, '--train-data', tokens, '--output-dir', output,
-            '--vocab', vocab_path, '--merges', merges_path, '--special-token', '<|endoftext|>')
-    command('train', '--config', config, '--train-data', tokens, '--output-dir', output,
-            '--resume', output / 'last.pt', '--max-steps', 2)
-    text = command('generate', '--checkpoint', output / 'last.pt', '--prompt', 'Hello',
-                   '--max-new-tokens', 2, '--temperature', 0, '--device', 'cpu')
-    assert text.startswith('Hello')
+    assert result.returncode == 2
+    assert 'lmforge prepare' in result.stderr
+    assert 'the following arguments are required: --config' in result.stderr
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='requires a CUDA device')
