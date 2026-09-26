@@ -97,7 +97,10 @@ def test_prepare_train_resume_and_generate(tmp_path):
     model, loaded_tok = load_model(tmp_path / 'resumed' / 'last.pt', device='cpu')
     output = generate_text(model, loaded_tok, 'hello', max_new_tokens=2, temperature=0)
     assert output.startswith('hello')
-    logs = [json.loads(line) for line in (tmp_path / 'resumed' / 'metrics.jsonl').read_text().splitlines()]
+    logs = [
+        json.loads(line)
+        for line in (tmp_path / 'resumed' / 'metrics.jsonl').read_text(encoding='utf-8').splitlines()
+    ]
     assert [r['step'] for r in logs] == [1, 2, 3, 4]
     assert (tmp_path / 'resumed' / 'best.pt').exists()
 

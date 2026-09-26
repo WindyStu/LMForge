@@ -50,14 +50,21 @@ class TransformerBlock(nn.Module):
         )
 
 
-    def forward(self, in_features):
+    def forward(
+            self,
+            in_features,
+            token_positions: torch.Tensor | None = None,
+    ):
         """
 
         :param in_features:
         :return:
         """
         # 不使用 +=，避免修改调用者 Tensor 和 autograd 问题。
-        in_features = in_features + self.attn(self.ln1(in_features))
+        in_features = in_features + self.attn(
+            self.ln1(in_features),
+            token_positions=token_positions,
+        )
         in_features = in_features + self.ffn(self.ln2(in_features))
         return in_features
 
@@ -127,7 +134,10 @@ class TransformerLM(nn.Module):
 
         in_indices = self.token_embeddings(in_indices)
         for i in range(self.num_layers):
-            in_indices = self.layers[i](in_indices)
+            in_indices = self.layers[i](
+                in_indices,
+                token_positions=token_positions,
+            )
 
         in_indices = self.ln_final(in_indices)
         in_indices = self.lm_head(in_indices)

@@ -11,14 +11,6 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch import Tensor
 
-from multiprocessing import Pool
-import heapq
-
-import regex as re
-from collections import defaultdict, Counter
-import numpy as np
-
-from lmforge.heap import Heap
 from lmforge.nn.attention import (
     MultiHeadSelfAttention,
     scaled_dot_product_attention,
@@ -31,7 +23,7 @@ from lmforge.nn.transformer import (
     TransformerBlock,
     TransformerLM,
 )
-from lmforge.pretokenization_example import find_chunk_boundaries
+from lmforge.tokenization.train_bpe import train_bpe as production_train_bpe
 from lmforge.tokenization.tokenizer import BPE_tokenizer
 from lmforge.training.checkpoint import (
     load_checkpoint,
@@ -47,9 +39,6 @@ from lmforge.training.optimizer import AdamW
 from lmforge.training.schedule import (
     cosine_learning_rate_schedule,
 )
-
-
-PAT = re.compile(r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
 
 def run_linear(
     d_in: int,
@@ -761,32 +750,6 @@ def get_tokenizer(
     return BPE_tokenizer(vocab, merges, special_tokens)
 
 
-def pre_token(
-    args: tuple[str, list[str]]
-) -> list[bytes]:
-    """ use for multi-processing situation .
-
-    Args:
-        args: include blow
-        input_chunk(str): a set of strs for this process
-        special_tokens(list[str]): A list of string special tokens to be added to the tokenizer vocabulary.
-
-    Returns:
-        list[bytes]
-            result:
-                the result of this process after finishing pre_token work
-    """
-    input_chunk, special_tokens = args
-    pure_text = re.split('|'.join(re.escape(i) for i in special_tokens) ,input_chunk)
-    pre_text = []
-    # PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-
-    for text in pure_text:
-        pre_text.extend([arr.group().encode("utf-8", "ignore") for arr in PAT.finditer(text)])
-
-    return pre_text
-
-
 def run_train_bpe(
     input_path: str | os.PathLike,
     vocab_size: int,
@@ -814,131 +777,9 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    # 1. parallel pre-tokenization
-    num_processes = 4
-    chunks = []
-    corpus = []
-    with open(input_path, "rb") as f:
-        boundaries = find_chunk_boundaries(f, num_processes, special_tokens)
-        for begin, end in zip(boundaries[:-1], boundaries[1:]):
-            f.seek(begin)
-            chunk = f.read(end - begin).replace(b"\r\n", b"\n").decode("utf-8", "ignore")
-            chunks.append((chunk,special_tokens))
-
-    with Pool(num_processes) as pool:
-        for idx in pool.imap_unordered(pre_token, chunks):
-            corpus.extend(idx)
-
-    # corpus.extend(pre_token(chunks[0]))
-
-    del chunks
-
-    # 2. create vocab
-    vocab = [st.encode("utf-8", "ignore") for st in special_tokens] + [bytes([i]) for i in range(256)]
-
-    # 3. count pairs
-    pairs = defaultdict(int)
-    word_splits = defaultdict(list)
-    # pair_order = defaultdict(int)
-    word_count = defaultdict(int)
-    # order_counter = 0
-    pair_2_token = defaultdict(Counter)
-
-    for cur_word in corpus:
-        word_count[cur_word] += 1
-        word_split = [cur_word[0:1]]
-        for j in range(len(cur_word) - 1):
-            pairs[(cur_word[j:j + 1], cur_word[j + 1:j + 2])] += 1
-            word_split.append(cur_word[j + 1:j + 2])
-            pair_2_token[(cur_word[j:j + 1], cur_word[j + 1:j + 2])][cur_word] += 1
-            # if (cur_word[j:j + 1], cur_word[j + 1:j + 2]) not in pair_order.keys():
-            #     pair_order[(cur_word[j:j + 1], cur_word[j + 1:j + 2])] = order_counter
-            #     order_counter += 1
-
-        word_splits[cur_word] = word_split
-
-    # heap = [(-v, pair_order[k], k) for k,v in pairs.items()]
-    heap = [(v, k) for k,v in pairs.items()]
-    # 最大堆
-    heap_max = Heap(mode="max", data=heap)
-    # heapq.heapify_max(heap)
-
-    merges = []
-
-    while len(vocab) < vocab_size:
-        # cur_v, cur_k = heapq.heappop_max(heap)
-        cur_v, cur_k = heap_max.pop()
-
-        if pairs[cur_k] != cur_v or pairs[cur_k] <= 0:
-            continue
-
-        # renew the vocab
-        t1, t2 = cur_k
-        t_new = t1 + t2
-        vocab.append(t_new)
-        merges.append((t1, t2))
-        del pairs[(t1, t2)]
-
-        affected_words = pair_2_token[cur_k]
-        # change the count
-        for word, count in affected_words.items():
-            if count == 0:
-                continue
-            cur_split = word_splits[word]
-        # for word, cur_split in word_splits.items():
-            i = 0
-            freq = word_count[word]
-            while i < len(cur_split) - 1:
-                if (cur_split[i], cur_split[i + 1]) == cur_k:
-                    if i > 0 :
-                        # if (cur_split[i - 1], t_new) not in pair_order.keys():
-                        #     pair_order[(cur_split[i - 1], t_new)] = order_counter
-                        #     order_counter += 1
-
-                        t_left_origin = (cur_split[i - 1], t1)
-                        t_left_after = (cur_split[i - 1], t_new)
-
-                        pairs[t_left_origin] -= freq
-                        pairs[t_left_after] += freq
-                        # heapq.heappush_max(heap, (pairs[(cur_split[i - 1], t1)], (cur_split[i - 1], t1)))
-                        # heapq.heappush_max(heap, (pairs[(cur_split[i - 1], t_new)], (cur_split[i - 1], t_new)))
-                        heap_max.push((pairs[t_left_origin], t_left_origin))
-                        pair_2_token[t_left_origin][word] -= 1
-                        # if pair_2_token[t_left_origin][word] == 0:
-                        #     del pair_2_token[t_left_origin][word]
-                        heap_max.push((pairs[t_left_after], t_left_after))
-                        pair_2_token[t_left_after][word] += 1
-
-                    if i < len(cur_split) - 2:
-                        # if t_right_after not in pair_order.keys():
-                        #     pair_order[t_right_after] = order_counter
-                        #     order_counter += 1
-
-                        t_right_origin = (t2, cur_split[i + 2])
-                        t_right_after = (t_new, cur_split[i + 2])
-
-                        pairs[t_right_origin] -= freq
-                        pairs[t_right_after] += freq
-                        heap_max.push((pairs[t_right_origin], t_right_origin))
-                        pair_2_token[t_right_origin][word] -= 1
-                        # if pair_2_token[t_right_origin][word] == 0:
-                        #     del pair_2_token[t_right_origin][word]
-                        heap_max.push((pairs[t_right_after], t_right_after))
-                        pair_2_token[t_right_after][word] += 1
-                        # heapq.heappush_max(heap, (pairs[t_right_origin], t_right_origin))
-                        # heapq.heappush_max(heap, (pairs[t_right_after], t_right_after))
-
-
-                    cur_split[i] = t_new
-                    del cur_split[i + 1]
-                    i += 1
-
-                else:
-                    i += 1
-
-        del pair_2_token[(t1, t2)]
-
-
-    vocab = dict(enumerate([i for i in vocab]))
-
-    return vocab, merges
+    return production_train_bpe(
+        input_path=input_path,
+        vocab_size=vocab_size,
+        special_tokens=special_tokens,
+        **kwargs,
+    )

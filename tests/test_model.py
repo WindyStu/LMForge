@@ -155,6 +155,50 @@ def test_transformer_lm_truncated_input(
     )
 
 
+def test_transformer_lm_propagates_explicit_token_positions():
+    from lmforge.nn.transformer import TransformerLM
+
+    class RecordingAttention(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.token_positions = None
+
+        def forward(self, in_features, token_positions=None):
+            self.token_positions = token_positions
+            return torch.zeros_like(in_features)
+
+    model = TransformerLM(
+        vocab_size=32,
+        context_length=8,
+        d_model=8,
+        num_layers=2,
+        num_heads=2,
+        d_ff=16,
+        rope_theta=10_000.0,
+    )
+    recording_attention = []
+    for layer in model.layers:
+        attention = RecordingAttention()
+        layer.attn = attention
+        layer.ln1 = torch.nn.Identity()
+        layer.ln2 = torch.nn.Identity()
+        layer.ffn = torch.nn.Identity()
+        recording_attention.append(attention)
+    model.ln_final = torch.nn.Identity()
+    model.lm_head = torch.nn.Identity()
+
+    token_ids = torch.tensor([[1, 2, 3, 4]])
+    token_positions = torch.tensor([[0, 3, 1, 7]])
+
+    model(token_ids, token_positions=token_positions)
+
+    assert all(
+        attention.token_positions is not None
+        and torch.equal(attention.token_positions, token_positions)
+        for attention in recording_attention
+    )
+
+
 def test_transformer_block(numpy_snapshot, ts_state_dict, in_embeddings, d_model, n_heads, d_ff, n_keys, theta):
     block_weights = {k.replace("layers.0.", ""): v for k, v in ts_state_dict[0].items() if "layers.0." in k}
 

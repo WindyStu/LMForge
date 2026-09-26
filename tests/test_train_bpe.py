@@ -2,9 +2,43 @@ import json
 import logging
 import time
 
+from . import adapters
 from .adapters import run_train_bpe
 from .common import FIXTURES_PATH, gpt2_bytes_to_unicode
 logging.basicConfig(level=logging.INFO)
+
+
+def test_run_train_bpe_delegates_to_production(monkeypatch, tmp_path):
+    input_path = tmp_path / "corpus.txt"
+    input_path.write_text("aba", encoding="utf-8")
+    expected = ({0: b"production"}, [(b"a", b"b")])
+    received = {}
+
+    def production_train_bpe(input_path, vocab_size, special_tokens, *, num_processes=1):
+        received.update(
+            input_path=input_path,
+            vocab_size=vocab_size,
+            special_tokens=special_tokens,
+            num_processes=num_processes,
+        )
+        return expected
+
+    monkeypatch.setattr(adapters, "production_train_bpe", production_train_bpe, raising=False)
+
+    actual = adapters.run_train_bpe(
+        input_path=input_path,
+        vocab_size=257,
+        special_tokens=["<|endoftext|>"],
+        num_processes=3,
+    )
+
+    assert actual == expected
+    assert received == {
+        "input_path": input_path,
+        "vocab_size": 257,
+        "special_tokens": ["<|endoftext|>"],
+        "num_processes": 3,
+    }
 
 
 def test_train_bpe_speed():
