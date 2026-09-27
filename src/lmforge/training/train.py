@@ -4,10 +4,8 @@ from __future__ import annotations
 from dataclasses import asdict
 import hashlib
 import json
-import os
 from pathlib import Path
 import random
-import tempfile
 import time
 
 import numpy as np
@@ -16,6 +14,7 @@ import torch
 from ..config import ModelConfig, TrainConfig
 from ..nn.transformer import TransformerLM
 from ..tokenization.tokenizer import BPE_tokenizer
+from . import checkpoint as checkpoint_io
 from .loss import clip_gradients, cross_entropy
 from .optimizer import AdamW
 from .prepare import tokenizer_state
@@ -82,17 +81,6 @@ def evaluate(model, data, config, rng):
         model.train(was_training)
 
 
-def _save_atomic(state, path):
-    path = Path(path)
-    with tempfile.NamedTemporaryFile(dir=path.parent, suffix='.pt.tmp', delete=False) as handle:
-        temporary = Path(handle.name)
-    try:
-        torch.save(state, temporary)
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resume=None):
     """Train to max_steps (total, not additional steps), saving last.pt / best.pt.
 
@@ -111,9 +99,7 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
         raise FileExistsError('output contains a run; use --resume or a new output directory')
     state = None
     if resume is not None:
-        state = torch.load(resume, map_location='cpu', weights_only=True)
-        if state.get('format') != 'cs336-training-v1':
-            raise ValueError('resume requires a cs336-training-v1 checkpoint')
+        state = checkpoint_io.load_training_checkpoint(resume)
         old_config, new_config = dict(state['config']), asdict(config)
         for key in ('max_steps', 'device', 'log_interval', 'save_interval'):
             old_config.pop(key)
@@ -210,17 +196,24 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
             if step % config.log_interval == 0 or step == config.max_steps:
                 print(json.dumps(record), flush=True)
             if step % config.save_interval == 0 or step == config.max_steps or improved:
-                checkpoint = {'format': 'cs336-training-v1', 'iteration': step,
-                    'config': asdict(config), 'model': model.state_dict(),
-                    'optimizer': optimizer.state_dict(), 'scaler': scaler.state_dict(),
-                    'best_val_loss': best_val_loss, 'data_sha256': data_hashes,
-                    'tokenizer': tokenizer_state(tokenizer) if tokenizer is not None else None,
-                    'train_rng': train_rng.bit_generator.state, 'val_rng': val_rng.bit_generator.state,
-                    'torch_rng': torch.get_rng_state(), 'python_rng': random.getstate(),
-                    'cuda_rng': torch.cuda.get_rng_state_all() if device.type == 'cuda' else None}
-                _save_atomic(checkpoint, output / 'last.pt')
+                checkpoint = checkpoint_io.create_training_checkpoint(
+                    iteration=step,
+                    config=asdict(config),
+                    model=model.state_dict(),
+                    optimizer=optimizer.state_dict(),
+                    scaler=scaler.state_dict(),
+                    best_val_loss=best_val_loss,
+                    data_sha256=data_hashes,
+                    tokenizer=tokenizer_state(tokenizer) if tokenizer is not None else None,
+                    train_rng=train_rng.bit_generator.state,
+                    val_rng=val_rng.bit_generator.state,
+                    torch_rng=torch.get_rng_state(),
+                    python_rng=random.getstate(),
+                    cuda_rng=torch.cuda.get_rng_state_all() if device.type == 'cuda' else None,
+                )
+                checkpoint_io.save_training_checkpoint(checkpoint, output / 'last.pt')
                 if improved:
-                    _save_atomic(checkpoint, output / 'best.pt')
+                    checkpoint_io.save_training_checkpoint(checkpoint, output / 'best.pt')
     return checkpoint
 
 

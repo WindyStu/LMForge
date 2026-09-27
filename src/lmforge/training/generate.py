@@ -7,6 +7,7 @@ import torch
 
 from ..nn.transformer import TransformerLM
 from ..tokenization.tokenizer import BPE_tokenizer
+from . import checkpoint as checkpoint_io
 
 
 def sampling_probs(logits, *, temperature=1.0, top_p=1.0):
@@ -67,9 +68,7 @@ def generate(model, input_ids, *, max_new_tokens=128, temperature=1.0, top_p=1.0
 
 
 def load_model(checkpoint_path, *, device='cpu'):
-    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
-    if checkpoint.get('format') != 'cs336-training-v1':
-        raise ValueError('expected a checkpoint written by training.train')
+    checkpoint = checkpoint_io.load_training_checkpoint(checkpoint_path)
     model = TransformerLM(**checkpoint['config']['model'], device=device)
     model.load_state_dict(checkpoint['model'], strict=True)
     model.eval()
