@@ -155,9 +155,12 @@ class RuntimeConfig:
     output_dir: Path
     device: str = "cpu"
     precision: str = "float32"
+    deterministic: bool = False
     resume: Path | None = None
 
     def __post_init__(self) -> None:
+        if type(self.deterministic) is not bool:
+            raise ConfigError("runtime.deterministic must be a boolean")
         if not re.fullmatch(r"cpu|cuda(?::\d+)?", self.device):
             raise ConfigError("runtime.device must be cpu, cuda, or cuda:<index>")
         if self.precision not in ("float32", "float16", "bfloat16"):
@@ -224,6 +227,7 @@ class TrainConfig:
     seed: int = 42
     device: str = "cpu"
     precision: str = "float32"
+    deterministic: bool = False
 
     @classmethod
     def from_dict(cls, values: Mapping[str, Any]) -> TrainConfig:
@@ -234,7 +238,12 @@ class TrainConfig:
 
     def validate(self) -> None:
         TrainingConfig(**{item.name: getattr(self, item.name) for item in fields(TrainingConfig)})
-        RuntimeConfig(output_dir=Path("."), device=self.device, precision=self.precision)
+        RuntimeConfig(
+            output_dir=Path("."),
+            device=self.device,
+            precision=self.precision,
+            deterministic=self.deterministic,
+        )
 
 
 @dataclass(frozen=True)
@@ -300,6 +309,7 @@ class LMForgeConfig:
             "runtime": {
                 "device": self.runtime.device,
                 "precision": self.runtime.precision,
+                "deterministic": self.runtime.deterministic,
                 "output_dir": str(self.runtime.output_dir),
                 "resume": str(self.runtime.resume) if self.runtime.resume is not None else None,
             },
@@ -337,6 +347,7 @@ class LMForgeConfig:
             **asdict(self.training),
             device=self.runtime.device,
             precision=self.runtime.precision,
+            deterministic=self.runtime.deterministic,
         )
 
 
@@ -380,10 +391,19 @@ def _parse_runtime(values: object, base_dir: Path) -> RuntimeConfig:
     output = _path(_required(data, "output_dir", "runtime"), base_dir, "runtime.output_dir")
     device = _string(data.get("device", "cpu"), "runtime.device")
     precision = _string(data.get("precision", "float32"), "runtime.precision")
+    deterministic = data.get("deterministic", False)
+    if type(deterministic) is not bool:
+        raise ConfigError("runtime.deterministic must be a boolean")
     resume_value = data.get("resume")
     if resume_value is not None:
         resume_value = _path(resume_value, base_dir, "runtime.resume")
-    return RuntimeConfig(output_dir=output, device=device, precision=precision, resume=resume_value)
+    return RuntimeConfig(
+        output_dir=output,
+        device=device,
+        precision=precision,
+        deterministic=deterministic,
+        resume=resume_value,
+    )
 
 
 def _parse_tokenizer(values: object, base_dir: Path) -> TokenizerConfig:

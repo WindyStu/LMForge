@@ -18,8 +18,8 @@ The configuration types are:
 - `ModelConfig`: model dimensions and RoPE parameters;
 - `TrainingConfig`: optimizer, schedule, evaluation, checkpoint cadence, and
   seed values declared under `[training]`;
-- `RuntimeConfig`: device, precision, output directory, and optional resume
-  checkpoint;
+- `RuntimeConfig`: device, precision, deterministic execution policy, output
+  directory, and optional resume checkpoint;
 - `TokenizerConfig`: vocab and merges paths, special tokens, and declared vocab
   size;
 - `PrepareDatasetConfig`: one UTF-8 input and token-array output pair;
@@ -28,9 +28,11 @@ The configuration types are:
 - `TrainConfig`: the derived production view consumed by the existing training
   loop.
 
-`TrainConfig` retains the exact nested model and flat training/runtime field
-shape currently serialized in `cs336-training-v1` checkpoints. Existing Python
-imports from `lmforge.training.train` remain valid through re-exported names.
+`TrainConfig` retains the nested model and flat training/runtime shape serialized
+in `cs336-training-v1` checkpoints. The optional `deterministic` field defaults
+to `false`; resume treats its absence in an older v1 checkpoint as `false`.
+Existing Python imports from `lmforge.training.train` remain valid through
+re-exported names.
 
 ## TOML schema
 
@@ -86,6 +88,7 @@ seed = 42
 [runtime]
 device = "cpu"
 precision = "float32"
+deterministic = false
 output_dir = "../../artifacts/runs/tinystories-small"
 ```
 
@@ -107,6 +110,7 @@ Pure configuration validation covers at least:
 - valid learning-rate, AdamW beta, epsilon, weight-decay, and gradient-norm
   ranges;
 - precision in `float32`, `float16`, or `bfloat16`;
+- deterministic execution policy must be a boolean and defaults to `false`;
 - device type limited to CPU or CUDA, with non-float32 precision limited to
   CUDA;
 - declared tokenizer vocab size equal to model vocab size.
@@ -147,6 +151,14 @@ are not supported.
 Expected configuration and input errors produce concise CLI errors and a
 nonzero exit status. Unexpected internal exceptions are not silently swallowed.
 
+At training start, the engine writes `manifest.json` beside `config.json`,
+`metrics.jsonl`, and checkpoints. The manifest records the canonical project
+configuration, seed streams, deterministic policy, Git revision and dirty
+state, Python/PyTorch/CUDA environment, CPU/GPU identity, dataset hashes and
+sizes, tokenizer fingerprint, model parameter count, invocation, and resume
+source. Direct Python API callers receive the effective `TrainConfig` in the
+manifest unless they supply a complete canonical project configuration.
+
 ## Compatibility
 
 `python -m lmforge.training.prepare`, `python -m lmforge.training.train`, and
@@ -155,8 +167,10 @@ the unified parser. They do not retain separate argument or configuration
 parsers. Prepare and train therefore migrate to the project TOML interface,
 while generation preserves its checkpoint-driven arguments.
 
-The training production API, numerical behavior, effective `TrainConfig`
-dictionary, and `cs336-training-v1` checkpoint format remain unchanged.
+The training production API, numerical behavior, and top-level
+`cs336-training-v1` checkpoint format remain unchanged. New checkpoints record
+the deterministic flag inside their effective config; older v1 checkpoints
+without it remain resumable as non-deterministic runs.
 
 ## Test-driven implementation
 

@@ -193,6 +193,25 @@ def test_allowlisted_overrides_are_immutable_and_derive_train_config(tmp_path: P
     assert train_config.precision == "float32"
 
 
+def test_deterministic_runtime_defaults_off_and_reaches_training(tmp_path: Path) -> None:
+    default_config = config_module.load_config(_write_config(tmp_path))
+    enabled_config = config_module.load_config(
+        _write_config(
+            tmp_path,
+            VALID_CONFIG.replace(
+                'precision = "float32"',
+                'precision = "float32"\ndeterministic = true',
+            ),
+        )
+    )
+
+    assert default_config.runtime.deterministic is False
+    assert default_config.to_train_config().deterministic is False
+    assert enabled_config.runtime.deterministic is True
+    assert enabled_config.to_train_config().deterministic is True
+    assert enabled_config.to_dict()["runtime"]["deterministic"] is True
+
+
 def test_unsupported_override_is_rejected(tmp_path: Path) -> None:
     config = config_module.load_config(_write_config(tmp_path))
 

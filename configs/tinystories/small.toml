@@ -47,4 +47,5 @@ seed = 42
 [runtime]
 device = "cpu"
 precision = "float32"
+deterministic = false
 output_dir = "../../artifacts/demo-run"

@@ -166,6 +166,19 @@ def test_real_console_prepare_train_resume_generate(tmp_path: Path) -> None:
     assert trained.returncode == 0, trained.stdout + trained.stderr
     checkpoint = tmp_path / "run" / "last.pt"
     assert checkpoint.is_file()
+    manifest = json.loads(
+        (tmp_path / "run" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(manifest["config"]) == {
+        "tokenizer",
+        "prepare",
+        "data",
+        "model",
+        "training",
+        "runtime",
+    }
+    assert manifest["config"]["runtime"]["deterministic"] is False
+    assert len(manifest["tokenizer_sha256"]) == 64
 
     resumed = _run_cli(
         "train",

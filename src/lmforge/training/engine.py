@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import random
 import time
+from typing import Mapping
 
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +16,7 @@ import torch
 
 from ..config import TrainConfig
 from ..nn.transformer import TransformerLM
+from .. import reproducibility
 from ..tokenization.tokenizer import BPE_tokenizer
 from . import checkpoint as checkpoint_io
 from . import evaluation as evaluation_loop
@@ -22,7 +24,7 @@ from . import logging as metrics_logging
 from .data import get_batch
 from .loss import clip_gradients
 from .optimizer import AdamW
-from .prepare import tokenizer_state
+from .prepare import tokenizer_fingerprint, tokenizer_state
 from .schedule import cosine_learning_rate_schedule
 
 
@@ -61,6 +63,7 @@ def train(
     tokenizer: BPE_tokenizer | None = None,
     resume: str | Path | None = None,
     metrics_logger: metrics_logging.MetricsLogger | None = None,
+    manifest_config: Mapping[str, object] | None = None,
 ) -> dict[str, object] | None:
     """Train to ``max_steps`` total and return the last checkpoint state."""
 
@@ -80,7 +83,8 @@ def train(
         )
     output = Path(output_dir)
     if resume is None and any(
-        (output / name).exists() for name in ("last.pt", "best.pt", "metrics.jsonl")
+        (output / name).exists()
+        for name in ("last.pt", "best.pt", "metrics.jsonl", "manifest.json")
     ):
         raise FileExistsError(
             "output contains a run; use --resume or a new output directory"
@@ -89,6 +93,7 @@ def train(
     if resume is not None:
         state = checkpoint_io.load_training_checkpoint(resume)
         old_config, new_config = dict(state["config"]), asdict(config)
+        old_config.setdefault("deterministic", False)
         for key in ("max_steps", "device", "log_interval", "save_interval"):
             old_config.pop(key)
             new_config.pop(key)
@@ -107,8 +112,7 @@ def train(
             output / "metrics.jsonl", state["iteration"]
         )
 
-    random.seed(config.seed)
-    torch.manual_seed(config.seed)
+    reproducibility.configure_reproducibility(config.seed, config.deterministic)
     train_rng = np.random.default_rng(config.seed)
     val_rng = np.random.default_rng(config.seed + 1)
     model = TransformerLM(**asdict(config.model), device=config.device)
@@ -140,6 +144,34 @@ def train(
     (output / "config.json").write_text(
         json.dumps(asdict(config), indent=2), encoding="utf-8"
     )
+    datasets = {
+        "train": {
+            "sha256": data_hashes["train"],
+            "tokens": len(train_tokens),
+            "dtype": str(train_tokens.dtype),
+        },
+        "validation": (
+            {
+                "sha256": data_hashes["validation"],
+                "tokens": len(val_tokens),
+                "dtype": str(val_tokens.dtype),
+            }
+            if val_tokens is not None
+            else None
+        ),
+    }
+    manifest = reproducibility.build_run_manifest(
+        seed=config.seed,
+        deterministic=config.deterministic,
+        config=manifest_config if manifest_config is not None else asdict(config),
+        datasets=datasets,
+        tokenizer_sha256=(
+            tokenizer_fingerprint(tokenizer) if tokenizer is not None else None
+        ),
+        model_parameters=sum(parameter.numel() for parameter in model.parameters()),
+        resume=resume,
+    )
+    reproducibility.write_run_manifest(manifest, output / "manifest.json")
     model.train()
     device = torch.device(config.device)
     checkpoint = None

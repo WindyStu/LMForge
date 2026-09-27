@@ -101,6 +101,7 @@ def _run_train(args: argparse.Namespace) -> int:
         config.runtime.output_dir,
         tokenizer=tokenizer,
         resume=config.runtime.resume,
+        manifest_config=config.to_dict(),
     )
     return 0
 
