@@ -19,9 +19,19 @@ dist/
 
 # Runtime data and artifacts
 data/
+artifacts/
 runs/
 checkpoints/
 wandb/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+*.jsonl
+*.log
+manifest.json
 
 # Editor and OS files
 .idea/
@@ -35,6 +45,7 @@ Thumbs.db
 .claude/
 .cursor/
 .windsurf/
+.continue/
 AGENTS.md
 CLAUDE.md
 GEMINI.md

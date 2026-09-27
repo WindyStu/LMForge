@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import platform
 import random
 import subprocess
 import sys
 import tempfile
-from typing import Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from pathlib import Path
 
 import numpy as np
 import torch
-
 
 RUN_MANIFEST_FORMAT = "lmforge-run-manifest-v1"
 
@@ -114,7 +113,7 @@ def build_run_manifest(
 
     return {
         "format": RUN_MANIFEST_FORMAT,
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "created_at_utc": datetime.now(UTC).isoformat(),
         "seed": seed,
         "seeds": {
             "python": seed,

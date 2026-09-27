@@ -50,6 +50,7 @@ line-length = 120
 
 [dependency-groups]
 dev = [
+    "ruff",
     "scalene>=2.3.0",
 ]
 
