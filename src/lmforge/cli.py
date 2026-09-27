@@ -80,7 +80,7 @@ def _validate_dataset_metadata(config: LMForgeConfig, tokenizer) -> None:
 
 
 def _run_train(args: argparse.Namespace) -> int:
-    from .training.train import train
+    from .training.engine import train
 
     config = load_config(args.config).with_overrides(**_training_overrides(args))
     if args.print_effective_config:
