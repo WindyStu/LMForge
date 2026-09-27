@@ -15,7 +15,9 @@ from ..config import ModelConfig, TrainConfig
 from ..nn.transformer import TransformerLM
 from ..tokenization.tokenizer import BPE_tokenizer
 from . import checkpoint as checkpoint_io
-from .loss import clip_gradients, cross_entropy
+from . import evaluation as evaluation_loop
+from . import logging as metrics_logging
+from .loss import clip_gradients
 from .optimizer import AdamW
 from .prepare import tokenizer_state
 from .schedule import cosine_learning_rate_schedule
@@ -52,36 +54,16 @@ def _batch(data, config, rng):
     return tokens[:, :-1], tokens[:, 1:]
 
 
-def _autocast(config):
-    dtype = torch.float16 if config.precision == 'float16' else torch.bfloat16
-    return torch.autocast(torch.device(config.device).type, dtype=dtype,
-                          enabled=config.precision != 'float32')
-
-
-def _loss(model, inputs, targets):
-    logits = model(inputs).float()
-    return cross_entropy(logits.reshape(-1, logits.shape[-1]), targets.reshape(-1))
-
-
-@torch.no_grad()
-def evaluate(model, data, config, rng):
-    was_training = model.training
-    model.eval()
-    try:
-        total = 0.0
-        for _ in range(config.eval_batches):
-            inputs, targets = _batch(data, config, rng)
-            with _autocast(config):
-                loss = _loss(model, inputs, targets)
-            if not torch.isfinite(loss):
-                raise FloatingPointError('non-finite validation loss')
-            total += loss.item()
-        return total / config.eval_batches
-    finally:
-        model.train(was_training)
-
-
-def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resume=None):
+def train(
+    config,
+    train_tokens,
+    val_tokens,
+    output_dir,
+    *,
+    tokenizer=None,
+    resume=None,
+    metrics_logger: metrics_logging.MetricsLogger | None = None,
+):
     """Train to max_steps (total, not additional steps), saving last.pt / best.pt.
 
     A step comprises grad_accum_steps equally sized microbatches. FP16 uses a
@@ -113,11 +95,9 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
             tokenizer = BPE_tokenizer(**saved_tok)
         elif tokenizer is not None and tokenizer_state(tokenizer) != saved_tok:
             raise ValueError('resume tokenizer differs from checkpoint')
-        log_path = output / 'metrics.jsonl'
-        if log_path.exists():
-            with log_path.open(encoding='utf-8') as log:
-                if any(json.loads(line)['step'] > state['iteration'] for line in log if line.strip()):
-                    raise ValueError('output log is newer than resume checkpoint; use a new output directory')
+        metrics_logging.validate_resume_metrics(
+            output / 'metrics.jsonl', state['iteration']
+        )
 
     random.seed(config.seed)
     torch.manual_seed(config.seed)
@@ -147,7 +127,9 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
     model.train()
     device = torch.device(config.device)
     checkpoint = None
-    with (output / 'metrics.jsonl').open('a', encoding='utf-8') as log:
+    with metrics_logging.metrics_logger_context(
+        output / 'metrics.jsonl', metrics_logger
+    ) as metrics:
         for step in range(iteration + 1, config.max_steps + 1):
             if device.type == 'cuda':
                 torch.cuda.synchronize(device)
@@ -161,8 +143,8 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
             train_loss = 0.0
             for _ in range(config.grad_accum_steps):
                 inputs, targets = _batch(train_tokens, config, train_rng)
-                with _autocast(config):
-                    loss = _loss(model, inputs, targets)
+                with evaluation_loop.autocast_context(config):
+                    loss = evaluation_loop.language_model_loss(model, inputs, targets)
                 if not torch.isfinite(loss):
                     raise FloatingPointError(f'non-finite training loss at step {step}')
                 train_loss += loss.item() / config.grad_accum_steps
@@ -187,14 +169,16 @@ def train(config, train_tokens, val_tokens, output_dir, *, tokenizer=None, resum
             # Eval cadence is independent of max_steps so stopping/resuming does not
             # consume extra validation RNG draws at an intermediate final checkpoint.
             if val_tokens is not None and step % config.eval_interval == 0:
-                val_loss = evaluate(model, val_tokens, config, val_rng)
+                val_loss = evaluation_loop.evaluate(model, val_tokens, config, val_rng)
                 record['val_loss'] = val_loss
                 if val_loss < best_val_loss:
                     best_val_loss, improved = val_loss, True
-            log.write(json.dumps(record, allow_nan=False) + '\n')
-            log.flush()
-            if step % config.log_interval == 0 or step == config.max_steps:
-                print(json.dumps(record), flush=True)
+            metrics.log(
+                record,
+                emit_stdout=(
+                    step % config.log_interval == 0 or step == config.max_steps
+                ),
+            )
             if step % config.save_interval == 0 or step == config.max_steps or improved:
                 checkpoint = checkpoint_io.create_training_checkpoint(
                     iteration=step,

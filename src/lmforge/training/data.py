@@ -6,7 +6,9 @@ def get_batch(
     dataset: npt.NDArray,
         batch_size: int,
         context_length: int,
-        device: str
+        device: str,
+        *,
+        rng: np.random.Generator | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Given a dataset (a 1D numpy array of integers) and a desired batch size and
@@ -25,7 +27,11 @@ def get_batch(
         is the sampled input sequences, and the second tuple item is the corresponding
         language modeling labels.
     """
-    random_positions = np.random.randint(0, len(dataset) - context_length, size=batch_size)
+    random_positions = (
+        np.random.randint(0, len(dataset) - context_length, size=batch_size)
+        if rng is None
+        else rng.integers(0, len(dataset) - context_length, size=batch_size)
+    )
     offset = np.arange(context_length)
     indices = random_positions[:, None] + offset[None, :]
     inputs = torch.tensor(
@@ -39,4 +45,4 @@ def get_batch(
         dtype=torch.long,
     )
 
-    return inputs, label
+    return inputs, label
