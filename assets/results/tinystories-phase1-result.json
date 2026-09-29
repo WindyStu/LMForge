@@ -1,0 +1,76 @@
+{
+  "schema": "lmforge-public-result-v1",
+  "status": "verified",
+  "source_commit": "f0aa89a8f625fc053f38dc9ed2dd747842e9aea9",
+  "run_count": 1,
+  "dataset": {
+    "name": "TinyStories V2 GPT-4",
+    "train": {
+      "bytes": 2227753162,
+      "sha256": "6418d412de72888f52b5142c761ac21a582f7d1166f0bfbdb5f03ccfdec90443",
+      "prepared_tokens": 541955360
+    },
+    "validation": {
+      "bytes": 22502601,
+      "sha256": "6874bae9a4c1a4e7edcf0e53b86c17817e9cf881fc75ff2368da457b80c0585d",
+      "prepared_tokens": 5473022
+    }
+  },
+  "tokenizer": {
+    "training_corpus": "train only",
+    "vocab_size": 8192,
+    "fingerprint_sha256": "e605b773e9b89564463048590086f3082bb442303353acf3ca828f2eb88b8f76"
+  },
+  "model": {
+    "parameters": 7604480,
+    "context_length": 256,
+    "d_model": 256,
+    "num_layers": 4,
+    "num_heads": 4,
+    "d_ff": 768,
+    "rope_theta": 10000.0
+  },
+  "training": {
+    "optimizer_steps": 10000,
+    "batch_size": 4,
+    "gradient_accumulation_steps": 8,
+    "effective_sequences_per_step": 32,
+    "effective_tokens": 81920000,
+    "precision": "float32",
+    "seed": 42,
+    "deterministic": true,
+    "optimizer_steps_skipped": 0
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "gpu_memory_bytes": 4294443008,
+    "pytorch": "2.6.0+cu124",
+    "cuda_runtime": "12.4",
+    "cudnn": 90100
+  },
+  "results": {
+    "final_train_loss": 1.8414974361658096,
+    "final_validation_loss": 1.9673571467399598,
+    "best_validation_loss": 1.8089607119560243,
+    "best_validation_step": 9500,
+    "validation_points": 100,
+    "last_checkpoint_iteration": 10000,
+    "best_checkpoint_iteration": 9500
+  },
+  "generation": {
+    "checkpoint": "best.pt",
+    "prompt": "Once upon a time",
+    "seed": 123,
+    "temperature": 0.8,
+    "top_p": 0.9,
+    "max_new_tokens": 128,
+    "repeated_outputs_byte_identical": true,
+    "sample_sha256": "f901b21c56c3bd97bb1adbc8eec80b2deb2c88ae0d8dc2a534c3f749c0403c18"
+  },
+  "artifacts": {
+    "metrics_sha256": "17230c07c91a93b2cb053bf1ca36a7beed31738cf2cf83e99d381d35ca39e021",
+    "last_checkpoint_sha256": "94e876608aab1e77514211876ee43ff3130d3678b4368280ac8db3beb3d8a854",
+    "best_checkpoint_sha256": "d1732ff82c2a5fbb07da1c90bd09414476efa0af90fb9fa1aea06947e3e8c05f",
+    "loss_svg_sha256": "6375cb3530df8a33a6016492ff890cd0def719755ab032f67ae1af85ff08adac"
+  }
+}
