@@ -37,7 +37,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--batch-sizes",
         type=_positive_csv,
-        default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+        default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096],
     )
     parser.add_argument(
         "--operations", type=lambda value: value.split(","), default=["forward_only", "forward_backward"]
