@@ -171,6 +171,22 @@ def test_oom_cleanup_failure_does_not_hide_original_oom(monkeypatch) -> None:
     assert result["failure"]["message"] == "original allocation failed"
 
 
+def test_wsl_oversubscription_is_recorded_as_a_memory_capacity_boundary() -> None:
+    from lmforge.benchmarking.runner import enforce_device_memory_capacity
+
+    result = {
+        "status": "ok",
+        "measurement": {"steady_state": {"peak_memory": {"allocated_bytes": 9, "reserved_bytes": 12}}},
+    }
+
+    bounded = enforce_device_memory_capacity(result, total_memory_bytes=10)
+
+    assert bounded["status"] == "memory_capacity_exceeded"
+    assert bounded["failure"]["type"] == "DeviceMemoryCapacityExceeded"
+    assert bounded["failure"]["total_memory_bytes"] == 10
+    assert bounded["failure"]["peak_reserved_bytes"] == 12
+
+
 @pytest.mark.parametrize("name", ["benchmark_training.py", "benchmark_attention.py"])
 def test_benchmark_scripts_are_independent_cli_entrypoints(name: str) -> None:
     script = Path(__file__).parents[1] / "scripts" / name

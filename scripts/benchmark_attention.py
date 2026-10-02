@@ -11,7 +11,10 @@ from pathlib import Path
 
 from lmforge.benchmarking.environment import benchmark_metadata
 from lmforge.benchmarking.output import write_report
-from lmforge.benchmarking.runner import run_configuration
+from lmforge.benchmarking.runner import (
+    enforce_device_memory_capacity,
+    run_configuration,
+)
 from lmforge.benchmarking.workloads import (
     attention_configuration,
     run_attention_workload,
@@ -165,22 +168,26 @@ def main() -> int:
     if not args.operations or not set(args.operations) <= allowed_operations:
         raise SystemExit("operations must be forward_only and/or forward_backward")
 
+    metadata = benchmark_metadata("attention", seed=args.seed, command=[sys.executable, *sys.argv])
+    gpus = metadata["environment"]["gpus"]
+    total_memory_bytes = gpus[0]["total_memory_bytes"] if gpus else None
     results = []
     for operation in args.operations:
         for context in args.contexts:
             for batch_size in args.batch_sizes:
                 result = _run_isolated(args, operation, context, batch_size)
+                result = enforce_device_memory_capacity(result, total_memory_bytes=total_memory_bytes)
                 results.append(result)
                 print(
                     f"operation={operation} context={context} batch={batch_size} status={result['status']}",
                     file=sys.stderr,
                     flush=True,
                 )
-                if result["status"] == "oom":
+                if result["status"] in {"oom", "memory_capacity_exceeded"}:
                     break
 
     report = {
-        **benchmark_metadata("attention", seed=args.seed, command=[sys.executable, *sys.argv]),
+        **metadata,
         "formal_benchmark": True,
         "isolation": "fresh subprocess, module, inputs, and RNG per configuration and operation",
         "configuration": {

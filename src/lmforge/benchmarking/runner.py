@@ -138,6 +138,35 @@ def cleanup_after_oom(device: str | torch.device) -> None:
         torch.cuda.empty_cache()
 
 
+def enforce_device_memory_capacity(result: dict[str, Any], *, total_memory_bytes: int | None) -> dict[str, Any]:
+    """Mark WSL/unified-memory oversubscription as a physical-memory boundary."""
+
+    if result.get("status") != "ok" or total_memory_bytes is None:
+        return result
+    measurement = result.get("measurement")
+    if not isinstance(measurement, dict):
+        return result
+    steady = measurement.get("steady_state")
+    if not isinstance(steady, dict):
+        return result
+    peak = steady.get("peak_memory")
+    if not isinstance(peak, dict):
+        return result
+    peak_reserved = peak.get("reserved_bytes")
+    if not isinstance(peak_reserved, int) or peak_reserved <= total_memory_bytes:
+        return result
+    bounded = dict(result)
+    bounded["status"] = "memory_capacity_exceeded"
+    bounded["failure"] = {
+        "type": "DeviceMemoryCapacityExceeded",
+        "message": "peak reserved CUDA memory exceeded physical device capacity",
+        "peak_allocated_bytes": peak.get("allocated_bytes"),
+        "peak_reserved_bytes": peak_reserved,
+        "total_memory_bytes": total_memory_bytes,
+    }
+    return bounded
+
+
 def run_configuration(function: Callable[[], dict[str, Any] | None], *, device: str) -> dict[str, Any]:
     try:
         result = function()

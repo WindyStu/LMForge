@@ -11,7 +11,10 @@ from pathlib import Path
 
 from lmforge.benchmarking.environment import benchmark_metadata
 from lmforge.benchmarking.output import write_report
-from lmforge.benchmarking.runner import run_configuration
+from lmforge.benchmarking.runner import (
+    enforce_device_memory_capacity,
+    run_configuration,
+)
 from lmforge.benchmarking.workloads import (
     profile_training_workload,
     run_training_workload,
@@ -208,17 +211,20 @@ def _benchmark(args: argparse.Namespace) -> int:
     if args.output_dir is None:
         raise SystemExit("--output-dir is required")
     metadata = benchmark_metadata("training", seed=args.seed, command=[sys.executable, *sys.argv])
+    gpus = metadata["environment"]["gpus"]
+    total_memory_bytes = gpus[0]["total_memory_bytes"] if gpus else None
     results = []
     for context in args.contexts:
         for batch_size in args.batch_sizes:
             result = _run_isolated(args, context, batch_size)
+            result = enforce_device_memory_capacity(result, total_memory_bytes=total_memory_bytes)
             results.append(result)
             print(
                 f"context={context} batch={batch_size} status={result['status']}",
                 file=sys.stderr,
                 flush=True,
             )
-            if result["status"] == "oom":
+            if result["status"] in {"oom", "memory_capacity_exceeded"}:
                 break
     report = {
         **metadata,
