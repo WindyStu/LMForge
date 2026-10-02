@@ -22,11 +22,22 @@ def _csv_row(report: Mapping[str, Any], result: Mapping[str, Any]) -> dict[str, 
     configuration = result.get("configuration", {})
     steady = _get(result, "measurement", "steady_state") or {}
     failure = result.get("failure") or {}
+    gpus = _get(report, "environment", "gpus") or []
+    gpu = gpus[0] if gpus else {}
     return {
         "benchmark": report.get("benchmark"),
+        "created_at_utc": report.get("created_at_utc"),
+        "command_json": json.dumps(report.get("command", []), ensure_ascii=False),
         "git_sha": _get(report, "git", "sha"),
         "git_dirty": _get(report, "git", "dirty"),
         "seed": report.get("seed"),
+        "python_version": _get(report, "environment", "python"),
+        "platform": _get(report, "environment", "platform"),
+        "torch_version": _get(report, "environment", "torch"),
+        "cuda_version": _get(report, "environment", "cuda"),
+        "cudnn_version": _get(report, "environment", "cudnn"),
+        "gpu_name": gpu.get("name"),
+        "gpu_total_memory_bytes": gpu.get("total_memory_bytes"),
         "status": result.get("status"),
         "operation": configuration.get("operation"),
         "batch_size": configuration.get("batch_size"),

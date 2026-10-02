@@ -119,6 +119,13 @@ def test_report_writes_json_and_flat_csv_with_environment_metadata(tmp_path: Pat
     assert rows[0]["git_sha"] == "abc"
     assert rows[0]["batch_size"] == "1"
     assert rows[0]["wall_tokens_per_second_median"] == "256.0"
+    assert rows[0]["torch_version"] == "2.6"
+    assert rows[0]["cuda_version"] == "12.4"
+    assert rows[0]["gpu_name"] == "GPU"
+    assert json.loads(rows[0]["command_json"]) == [
+        "python",
+        "benchmark_training.py",
+    ]
 
 
 def test_oom_result_records_failure_and_uses_cleanup_only_after_oom(monkeypatch) -> None:
