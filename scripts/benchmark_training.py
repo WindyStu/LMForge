@@ -35,7 +35,11 @@ def _positive_csv(value: str) -> list[int]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contexts", type=_positive_csv, default=[128, 256, 512, 1024, 2048])
-    parser.add_argument("--batch-sizes", type=_positive_csv, default=[1, 2, 4, 8, 16, 32, 64])
+    parser.add_argument(
+        "--batch-sizes",
+        type=_positive_csv,
+        default=[1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+    )
     parser.add_argument("--warmup", type=int, default=5)
     parser.add_argument("--repetitions", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
