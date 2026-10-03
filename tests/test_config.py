@@ -8,7 +8,6 @@ import pytest
 
 import lmforge.config as config_module
 
-
 VALID_CONFIG = """
 [tokenizer]
 vocab = "tokenizer/vocab.json"
@@ -159,6 +158,34 @@ def test_invalid_precision_device_combination_is_rejected(tmp_path: Path) -> Non
     text = VALID_CONFIG.replace('precision = "float32"', 'precision = "float16"')
 
     with pytest.raises(config_module.ConfigError, match="float32 on CPU"):
+        config_module.load_config(_write_config(tmp_path, text))
+
+
+def test_attention_backend_defaults_to_reference_and_round_trips(tmp_path: Path) -> None:
+    default_config = config_module.load_config(_write_config(tmp_path))
+    sdpa_config = config_module.load_config(
+        _write_config(
+            tmp_path,
+            VALID_CONFIG.replace(
+                "rope_theta = 10000.0",
+                'rope_theta = 10000.0\nattention_backend = "sdpa"',
+            ),
+        )
+    )
+
+    assert default_config.model.attention_backend == "reference"
+    assert sdpa_config.model.attention_backend == "sdpa"
+    assert sdpa_config.to_train_config().model.attention_backend == "sdpa"
+    assert sdpa_config.to_dict()["model"]["attention_backend"] == "sdpa"
+
+
+def test_invalid_attention_backend_is_rejected(tmp_path: Path) -> None:
+    text = VALID_CONFIG.replace(
+        "rope_theta = 10000.0",
+        'rope_theta = 10000.0\nattention_backend = "flash"',
+    )
+
+    with pytest.raises(config_module.ConfigError, match="attention_backend"):
         config_module.load_config(_write_config(tmp_path, text))
 
 

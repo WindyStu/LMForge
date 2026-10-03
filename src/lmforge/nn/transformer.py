@@ -1,25 +1,25 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 from .attention import MultiHeadSelfAttention
 from .ffn import SwiGLU
 from .linear import Embedding, Linear
 from .norm import RMSNorm
-from .rope import RotaryPositionalEmbedding
-from torch import Tensor
+
 
 class TransformerBlock(nn.Module):
     def __init__(
-            self,
-            d_model,
-            num_heads,
-            d_ff,
-            max_seq_len,
-            theta,
-            device=None,
-            dtype=None
+        self,
+        d_model,
+        num_heads,
+        d_ff,
+        max_seq_len,
+        theta,
+        device=None,
+        dtype=None,
+        attention_backend: str = "reference",
     ):
-        super(TransformerBlock, self).__init__()
+        super().__init__()
         self.d_model = d_model
         self.num_head = num_heads
         self.d_ff = d_ff
@@ -31,6 +31,7 @@ class TransformerBlock(nn.Module):
             theta,
             device=device,
             dtype=dtype,
+            attention_backend=attention_backend,
         )
         self.ffn = SwiGLU(
             d_model,
@@ -38,22 +39,21 @@ class TransformerBlock(nn.Module):
             device=device,
             dtype=dtype,
         )
-        self.ln1  = RMSNorm(
+        self.ln1 = RMSNorm(
             d_model,
             device=device,
             dtype=dtype,
         )
-        self.ln2  = RMSNorm(
+        self.ln2 = RMSNorm(
             d_model,
             device=device,
             dtype=dtype,
         )
-
 
     def forward(
-            self,
-            in_features,
-            token_positions: torch.Tensor | None = None,
+        self,
+        in_features,
+        token_positions: torch.Tensor | None = None,
     ):
         """
 
@@ -68,23 +68,25 @@ class TransformerBlock(nn.Module):
         in_features = in_features + self.ffn(self.ln2(in_features))
         return in_features
 
+
 class TransformerLM(nn.Module):
     def __init__(
-            self,
-            vocab_size,
-            context_length,
-            d_model,
-            num_layers,
-            num_heads,
-            d_ff,
-            rope_theta,
-            device=None,
-            dtype=None,
+        self,
+        vocab_size,
+        context_length,
+        d_model,
+        num_layers,
+        num_heads,
+        d_ff,
+        rope_theta,
+        device=None,
+        dtype=None,
+        attention_backend: str = "reference",
     ):
-        super(TransformerLM, self).__init__()
+        super().__init__()
         self.num_layers = num_layers
         self.context_length = context_length
-        self.token_embeddings  = Embedding(
+        self.token_embeddings = Embedding(
             vocab_size,
             d_model,
             device=device,
@@ -100,7 +102,11 @@ class TransformerLM(nn.Module):
                     rope_theta,
                     device=device,
                     dtype=dtype,
-                ) for _ in range(num_layers)])
+                    attention_backend=attention_backend,
+                )
+                for _ in range(num_layers)
+            ]
+        )
         self.ln_final = RMSNorm(
             d_model,
             device=device,
@@ -114,9 +120,9 @@ class TransformerLM(nn.Module):
         )
 
     def forward(
-            self,
-            in_indices,
-            token_positions: torch.Tensor | None = None,
+        self,
+        in_indices,
+        token_positions: torch.Tensor | None = None,
     ):
         """
 
@@ -125,12 +131,9 @@ class TransformerLM(nn.Module):
         """
 
         if token_positions is not None:
-            token_positions = token_positions[
-                ..., : self.context_length
-            ]
+            token_positions = token_positions[..., : self.context_length]
 
-
-        in_indices = in_indices[..., :self.context_length]
+        in_indices = in_indices[..., : self.context_length]
 
         in_indices = self.token_embeddings(in_indices)
         for i in range(self.num_layers):

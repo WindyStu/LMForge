@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field, fields, replace
 import math
-from pathlib import Path
 import re
 import tomllib
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field, fields, replace
+from pathlib import Path
+from typing import Any
 
 
 class ConfigError(ValueError):
@@ -90,6 +91,7 @@ class ModelConfig:
     num_heads: int = 4
     d_ff: int = 352
     rope_theta: float = 10000.0
+    attention_backend: str = "reference"
 
     def __post_init__(self) -> None:
         for name in ("vocab_size", "context_length", "d_model", "num_layers", "num_heads", "d_ff"):
@@ -101,6 +103,8 @@ class ModelConfig:
             raise ConfigError("model.d_model must be divisible by model.num_heads")
         if (self.d_model // self.num_heads) % 2:
             raise ConfigError("model dimensions require an even RoPE head dimension")
+        if self.attention_backend not in {"reference", "naive", "sdpa"}:
+            raise ConfigError("model.attention_backend must be reference, naive or sdpa")
 
 
 @dataclass(frozen=True)
@@ -296,8 +300,7 @@ class LMForgeConfig:
             },
             "prepare": {
                 "datasets": [
-                    {"input": str(dataset.input), "output": str(dataset.output)}
-                    for dataset in self.prepare.datasets
+                    {"input": str(dataset.input), "output": str(dataset.output)} for dataset in self.prepare.datasets
                 ]
             },
             "data": {
@@ -357,6 +360,8 @@ def _parse_model(values: object) -> ModelConfig:
         if item.name in data:
             if item.name == "rope_theta":
                 data[item.name] = _finite_float(data[item.name], f"model.{item.name}")
+            elif item.name == "attention_backend":
+                data[item.name] = _string(data[item.name], f"model.{item.name}")
             else:
                 data[item.name] = _positive_int(data[item.name], f"model.{item.name}")
     return ModelConfig(**data)
