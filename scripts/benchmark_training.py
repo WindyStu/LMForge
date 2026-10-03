@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from lmforge.benchmarking.environment import benchmark_metadata
@@ -148,7 +150,23 @@ def _worker_command(args: argparse.Namespace, context: int, batch_size: int) -> 
 
 def _run_isolated(args: argparse.Namespace, context: int, batch_size: int) -> dict[str, object]:
     command = _worker_command(args, context, batch_size)
-    child = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
+    run_options = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+    }
+    if args.compile_model:
+        with tempfile.TemporaryDirectory(prefix="lmforge-inductor-") as cache:
+            environment = os.environ.copy()
+            environment["TORCHINDUCTOR_CACHE_DIR"] = cache
+            child = subprocess.run(
+                command,
+                env=environment,
+                check=False,
+                **run_options,
+            )
+    else:
+        child = subprocess.run(command, check=False, **run_options)
     lines = [line for line in child.stdout.splitlines() if line.strip()]
     if child.returncode != 0 or not lines:
         return {

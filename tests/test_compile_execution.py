@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.util
+import json
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -117,3 +120,42 @@ def test_training_benchmark_configuration_records_compile_mode() -> None:
 
     assert configuration["compile_model"] is True
     assert configuration["execution_mode"] == "compile"
+
+
+def test_compile_worker_uses_and_cleans_an_isolated_inductor_cache(
+    monkeypatch,
+) -> None:
+    script = Path(__file__).parents[1] / "scripts" / "benchmark_training.py"
+    spec = importlib.util.spec_from_file_location("benchmark_training_test", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    args = module._parser().parse_args(["--compile-model"])
+    observed_cache = None
+
+    def record_run(*_args, **kwargs):
+        nonlocal observed_cache
+        observed_cache = kwargs["env"]["TORCHINDUCTOR_CACHE_DIR"]
+        assert Path(observed_cache).is_dir()
+        return type(
+            "Result",
+            (),
+            {
+                "returncode": 0,
+                "stdout": json.dumps(
+                    {
+                        "status": "ok",
+                        "configuration": {},
+                    }
+                ),
+                "stderr": "",
+            },
+        )()
+
+    monkeypatch.setattr(module.subprocess, "run", record_run)
+
+    result = module._run_isolated(args, context=128, batch_size=1)
+
+    assert result["status"] == "ok"
+    assert observed_cache is not None
+    assert not Path(observed_cache).exists()
