@@ -218,9 +218,102 @@ def test_wsl_oversubscription_is_recorded_as_a_memory_capacity_boundary() -> Non
     assert bounded["failure"]["peak_reserved_bytes"] == 12
 
 
-@pytest.mark.parametrize("name", ["benchmark_training.py", "benchmark_attention.py"])
+@pytest.mark.parametrize(
+    "name",
+    ["benchmark_training.py", "benchmark_attention.py", "benchmark_phase2.py"],
+)
 def test_benchmark_scripts_are_independent_cli_entrypoints(name: str) -> None:
     script = Path(__file__).parents[1] / "scripts" / name
     assert script.is_file()
     source = script.read_text(encoding="utf-8")
     assert 'if __name__ == "__main__"' in source
+
+
+def test_training_flops_scale_with_batch_and_include_quadratic_attention() -> None:
+    from lmforge.benchmarking.analysis import theoretical_training_flops
+
+    short = theoretical_training_flops(
+        batch_size=1,
+        context_length=128,
+        vocab_size=8192,
+        d_model=256,
+        num_layers=4,
+        d_ff=768,
+    )
+    long = theoretical_training_flops(
+        batch_size=1,
+        context_length=256,
+        vocab_size=8192,
+        d_model=256,
+        num_layers=4,
+        d_ff=768,
+    )
+    doubled_batch = theoretical_training_flops(
+        batch_size=2,
+        context_length=128,
+        vocab_size=8192,
+        d_model=256,
+        num_layers=4,
+        d_ff=768,
+    )
+
+    assert doubled_batch == 2 * short
+    assert long > 2 * short
+
+
+def test_mfu_requires_explicit_peak_and_uses_step_flops() -> None:
+    from lmforge.benchmarking.analysis import model_flops_utilization
+
+    assert model_flops_utilization(step_flops=2_000, step_seconds=0.5, peak_flops_per_second=10_000) == 0.4
+    with pytest.raises(ValueError, match="peak"):
+        model_flops_utilization(step_flops=2_000, step_seconds=0.5, peak_flops_per_second=0)
+
+
+def test_independent_run_summary_reports_sample_variation() -> None:
+    from lmforge.benchmarking.analysis import summarize_independent_runs
+
+    summary = summarize_independent_runs([10.0, 12.0, 14.0])
+
+    assert summary == {
+        "count": 3,
+        "mean": 12.0,
+        "stdev": 2.0,
+        "min": 10.0,
+        "max": 14.0,
+    }
+
+
+def test_phase2_protocol_keeps_control_capacity_attention_and_long_training() -> None:
+    from lmforge.benchmarking.phase2 import formal_protocol
+
+    protocol = formal_protocol(independent_runs=3, long_training_steps=1000)
+
+    assert protocol["contexts"] == [128, 256, 512, 1024, 2048]
+    assert protocol["warmup"] == 5
+    assert protocol["steady_repetitions"] == 10
+    assert protocol["independent_runs"] == 3
+    assert len(protocol["control_variants"]) == 5
+    assert {item["name"] for item in protocol["capacity_variants"]} == {
+        "reference-fp32-eager",
+        "sdpa-bf16-eager",
+    }
+    assert {item["attention_backend"] for item in protocol["attention_variants"]} == {
+        "reference",
+        "sdpa",
+    }
+    assert protocol["long_training"]["steps"] == 1000
+    assert protocol["long_training"]["context_length"] == 256
+    assert protocol["long_training"]["batch_size"] == 4
+    assert protocol["long_training"]["gradient_accumulation"] == 8
+    assert not any(
+        forbidden in repr(protocol).lower()
+        for forbidden in ("flashattention", "triton", "kv cache")
+    )
+
+
+def test_publication_gate_requires_three_successful_independent_runs() -> None:
+    from lmforge.benchmarking.phase2 import publication_eligibility
+
+    assert publication_eligibility(["ok", "ok", "ok"], required_runs=3) is True
+    assert publication_eligibility(["ok", "ok"], required_runs=3) is False
+    assert publication_eligibility(["ok", "ok", "oom"], required_runs=3) is False
