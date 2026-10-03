@@ -15,11 +15,12 @@ start training, or modify global random state.
 
 The configuration types are:
 
-- `ModelConfig`: model dimensions and RoPE parameters;
+- `ModelConfig`: model dimensions, RoPE parameters, and the explicit attention
+  backend;
 - `TrainingConfig`: optimizer, schedule, evaluation, checkpoint cadence, and
   seed values declared under `[training]`;
-- `RuntimeConfig`: device, precision, deterministic execution policy, output
-  directory, and optional resume checkpoint;
+- `RuntimeConfig`: device, precision, deterministic and compile execution
+  policies, output directory, and optional resume checkpoint;
 - `TokenizerConfig`: vocab and merges paths, special tokens, and declared vocab
   size;
 - `PrepareDatasetConfig`: one UTF-8 input and token-array output pair;
@@ -65,6 +66,7 @@ num_layers = 2
 num_heads = 4
 d_ff = 352
 rope_theta = 10000.0
+attention_backend = "reference"
 
 [training]
 max_steps = 1000
@@ -89,6 +91,7 @@ seed = 42
 device = "cpu"
 precision = "float32"
 deterministic = false
+compile_model = false
 output_dir = "../../artifacts/runs/tinystories-small"
 ```
 
@@ -110,7 +113,12 @@ Pure configuration validation covers at least:
 - valid learning-rate, AdamW beta, epsilon, weight-decay, and gradient-norm
   ranges;
 - precision in `float32`, `float16`, or `bfloat16`;
+- attention backend in `reference`, `naive`, or `sdpa`; `reference` and
+  `naive` select the readable explicit score-matrix implementation;
 - deterministic execution policy must be a boolean and defaults to `false`;
+- model compilation must be a boolean and defaults to `false`; when enabled,
+  only model execution is passed to `torch.compile` while checkpoint state
+  remains on the original module;
 - device type limited to CPU or CUDA, with non-float32 precision limited to
   CUDA;
 - declared tokenizer vocab size equal to model vocab size.
@@ -169,8 +177,10 @@ while generation preserves its checkpoint-driven arguments.
 
 The training production API, numerical behavior, and top-level
 `cs336-training-v1` checkpoint format remain unchanged. New checkpoints record
-the deterministic flag inside their effective config; older v1 checkpoints
-without it remain resumable as non-deterministic runs.
+the deterministic, attention-backend, precision, and compile policies inside
+their effective config. These execution policies may change on resume because
+they do not change parameter shapes; older v1 checkpoints default to reference
+attention and eager execution.
 
 ## Test-driven implementation
 

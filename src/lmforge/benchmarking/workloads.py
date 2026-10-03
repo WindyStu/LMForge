@@ -49,6 +49,34 @@ def _parameter_count(module: torch.nn.Module) -> int:
     return sum(parameter.numel() for parameter in module.parameters())
 
 
+def _reset_compile_state() -> None:
+    torch._dynamo.reset()
+    torch._dynamo.utils.counters.clear()
+
+
+def _compile_diagnostics(enabled: bool) -> dict[str, Any]:
+    if not enabled:
+        return {
+            "enabled": False,
+            "graph_break_count": 0,
+            "fallback_detected": False,
+            "counters": {},
+        }
+    counters = {
+        str(category): {str(name): int(value) for name, value in values.items()}
+        for category, values in torch._dynamo.utils.counters.items()
+        if values
+    }
+    frames = counters.get("frames", {})
+    return {
+        "enabled": True,
+        "graph_break_count": sum(counters.get("graph_break", {}).values()),
+        "fallback_detected": frames.get("total", 0) > frames.get("ok", 0),
+        "suppress_errors": bool(torch._dynamo.config.suppress_errors),
+        "counters": counters,
+    }
+
+
 def training_configuration(
     *,
     batch_size: int,
@@ -57,6 +85,7 @@ def training_configuration(
     repetitions: int,
     precision: str,
     attention_backend: str,
+    compile_model: bool = False,
 ) -> dict[str, Any]:
     return {
         "operation": "training_step",
@@ -65,6 +94,8 @@ def training_configuration(
         "precision": precision,
         "dtype": _dtype_name(precision),
         "attention_backend": attention_backend,
+        "compile_model": compile_model,
+        "execution_mode": "compile" if compile_model else "eager",
         "warmup": warmup,
         "repetitions": repetitions,
         "cold_start_iterations": 1,
@@ -88,6 +119,7 @@ def run_training_workload(
     seed: int,
     warmup: int,
     repetitions: int,
+    compile_model: bool = False,
 ) -> dict[str, Any]:
     target = _validate_execution(device, precision, attention_backend)
     configure_reproducibility(seed, deterministic=False)
@@ -105,6 +137,11 @@ def run_training_workload(
     )
     model.train()
     optimizer = AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8, weight_decay=0.1)
+    if compile_model:
+        _reset_compile_state()
+        execution_model = torch.compile(model)
+    else:
+        execution_model = model
     generator = torch.Generator(device=target).manual_seed(seed)
     inputs = torch.randint(
         0,
@@ -124,20 +161,22 @@ def run_training_workload(
     def step() -> None:
         optimizer.zero_grad(set_to_none=True)
         with _autocast_context(target, precision):
-            loss = language_model_loss(model, inputs, targets)
+            loss = language_model_loss(execution_model, inputs, targets)
         loss.backward()
         clip_gradients(model.parameters(), 1.0)
         optimizer.step()
 
+    measurement = measure_phases(
+        step,
+        device=target,
+        warmup=warmup,
+        repetitions=repetitions,
+        tokens_per_step=batch_size * context_length,
+    )
     return {
         "model_parameters": _parameter_count(model),
-        "measurement": measure_phases(
-            step,
-            device=target,
-            warmup=warmup,
-            repetitions=repetitions,
-            tokens_per_step=batch_size * context_length,
-        ),
+        "compile_diagnostics": _compile_diagnostics(compile_model),
+        "measurement": measurement,
     }
 
 

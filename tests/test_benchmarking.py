@@ -94,8 +94,13 @@ def test_report_writes_json_and_flat_csv_with_environment_metadata(tmp_path: Pat
                     "context_length": 128,
                     "precision": "float32",
                     "attention_backend": "reference",
+                    "compile_model": True,
                 },
                 "model_parameters": 123,
+                "compile_diagnostics": {
+                    "graph_break_count": 2,
+                    "fallback_detected": True,
+                },
                 "measurement": {
                     "steady_state": {
                         "wall_time_seconds": {"median": 0.5},
@@ -122,6 +127,9 @@ def test_report_writes_json_and_flat_csv_with_environment_metadata(tmp_path: Pat
     assert rows[0]["torch_version"] == "2.6"
     assert rows[0]["cuda_version"] == "12.4"
     assert rows[0]["gpu_name"] == "GPU"
+    assert rows[0]["compile_model"] == "True"
+    assert rows[0]["graph_break_count"] == "2"
+    assert rows[0]["compile_fallback_detected"] == "True"
     assert json.loads(rows[0]["command_json"]) == [
         "python",
         "benchmark_training.py",

@@ -160,11 +160,14 @@ class RuntimeConfig:
     device: str = "cpu"
     precision: str = "float32"
     deterministic: bool = False
+    compile_model: bool = False
     resume: Path | None = None
 
     def __post_init__(self) -> None:
         if type(self.deterministic) is not bool:
             raise ConfigError("runtime.deterministic must be a boolean")
+        if type(self.compile_model) is not bool:
+            raise ConfigError("runtime.compile_model must be a boolean")
         if not re.fullmatch(r"cpu|cuda(?::\d+)?", self.device):
             raise ConfigError("runtime.device must be cpu, cuda, or cuda:<index>")
         if self.precision not in ("float32", "float16", "bfloat16"):
@@ -232,6 +235,7 @@ class TrainConfig:
     device: str = "cpu"
     precision: str = "float32"
     deterministic: bool = False
+    compile_model: bool = False
 
     @classmethod
     def from_dict(cls, values: Mapping[str, Any]) -> TrainConfig:
@@ -247,6 +251,7 @@ class TrainConfig:
             device=self.device,
             precision=self.precision,
             deterministic=self.deterministic,
+            compile_model=self.compile_model,
         )
 
 
@@ -313,6 +318,7 @@ class LMForgeConfig:
                 "device": self.runtime.device,
                 "precision": self.runtime.precision,
                 "deterministic": self.runtime.deterministic,
+                "compile_model": self.runtime.compile_model,
                 "output_dir": str(self.runtime.output_dir),
                 "resume": str(self.runtime.resume) if self.runtime.resume is not None else None,
             },
@@ -351,6 +357,7 @@ class LMForgeConfig:
             device=self.runtime.device,
             precision=self.runtime.precision,
             deterministic=self.runtime.deterministic,
+            compile_model=self.runtime.compile_model,
         )
 
 
@@ -399,6 +406,9 @@ def _parse_runtime(values: object, base_dir: Path) -> RuntimeConfig:
     deterministic = data.get("deterministic", False)
     if type(deterministic) is not bool:
         raise ConfigError("runtime.deterministic must be a boolean")
+    compile_model = data.get("compile_model", False)
+    if type(compile_model) is not bool:
+        raise ConfigError("runtime.compile_model must be a boolean")
     resume_value = data.get("resume")
     if resume_value is not None:
         resume_value = _path(resume_value, base_dir, "runtime.resume")
@@ -407,6 +417,7 @@ def _parse_runtime(values: object, base_dir: Path) -> RuntimeConfig:
         device=device,
         precision=precision,
         deterministic=deterministic,
+        compile_model=compile_model,
         resume=resume_value,
     )
 

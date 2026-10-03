@@ -50,6 +50,7 @@ def _parser() -> argparse.ArgumentParser:
         choices=("reference", "naive", "sdpa"),
         default="reference",
     )
+    parser.add_argument("--compile-model", action="store_true")
     parser.add_argument("--vocab-size", type=int, default=8192)
     parser.add_argument("--d-model", type=int, default=256)
     parser.add_argument("--num-layers", type=int, default=4)
@@ -82,6 +83,7 @@ def _workload_arguments(args: argparse.Namespace, context: int, batch_size: int)
         "seed": args.seed,
         "warmup": args.warmup,
         "repetitions": args.repetitions,
+        "compile_model": args.compile_model,
     }
 
 
@@ -95,6 +97,7 @@ def _worker(args: argparse.Namespace) -> int:
         repetitions=args.repetitions,
         precision=args.precision,
         attention_backend=args.attention_backend,
+        compile_model=args.compile_model,
     )
     measured = run_configuration(
         lambda: run_training_workload(**_workload_arguments(args, args.context, args.batch_size)),
@@ -105,7 +108,7 @@ def _worker(args: argparse.Namespace) -> int:
 
 
 def _worker_command(args: argparse.Namespace, context: int, batch_size: int) -> list[str]:
-    return [
+    command = [
         sys.executable,
         str(Path(__file__).resolve()),
         "--worker",
@@ -138,6 +141,9 @@ def _worker_command(args: argparse.Namespace, context: int, batch_size: int) -> 
         "--rope-theta",
         str(args.rope_theta),
     ]
+    if args.compile_model:
+        command.append("--compile-model")
+    return command
 
 
 def _run_isolated(args: argparse.Namespace, context: int, batch_size: int) -> dict[str, object]:
@@ -154,6 +160,7 @@ def _run_isolated(args: argparse.Namespace, context: int, batch_size: int) -> di
                 repetitions=args.repetitions,
                 precision=args.precision,
                 attention_backend=args.attention_backend,
+                compile_model=args.compile_model,
             ),
             "failure": {
                 "type": "WorkerProcessError",
@@ -245,6 +252,8 @@ def _benchmark(args: argparse.Namespace) -> int:
             "repetitions": args.repetitions,
             "precision": args.precision,
             "attention_backend": args.attention_backend,
+            "compile_model": args.compile_model,
+            "execution_mode": "compile" if args.compile_model else "eager",
             "model": {
                 "vocab_size": args.vocab_size,
                 "d_model": args.d_model,
@@ -271,6 +280,8 @@ def main() -> int:
     if args.worker:
         return _worker(args)
     if args.profile:
+        if args.compile_model:
+            raise SystemExit("--profile and --compile-model are separate runs")
         return _profile(args)
     return _benchmark(args)
 

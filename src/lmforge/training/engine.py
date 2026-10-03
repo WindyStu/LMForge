@@ -61,6 +61,7 @@ def _checkpoint_compatibility_config(values: Mapping[str, object]) -> dict[str, 
         "max_steps",
         "device",
         "precision",
+        "compile_model",
         "log_interval",
         "save_interval",
     ):
@@ -140,6 +141,9 @@ def train(
             torch.cuda.set_rng_state_all(state["cuda_rng"])
         del state
 
+    model.train()
+    execution_model = torch.compile(model) if config.compile_model else model
+
     output.mkdir(parents=True, exist_ok=True)
     (output / "config.json").write_text(json.dumps(asdict(config), indent=2), encoding="utf-8")
     datasets = {
@@ -168,7 +172,6 @@ def train(
         resume=resume,
     )
     reproducibility.write_run_manifest(manifest, output / "manifest.json")
-    model.train()
     device = torch.device(config.device)
     checkpoint = None
     with metrics_logging.metrics_logger_context(output / "metrics.jsonl", metrics_logger) as metrics:
@@ -197,7 +200,11 @@ def train(
                     rng=train_rng,
                 )
                 with evaluation_loop.autocast_context(config):
-                    loss = evaluation_loop.language_model_loss(model, inputs, targets)
+                    loss = evaluation_loop.language_model_loss(
+                        execution_model,
+                        inputs,
+                        targets,
+                    )
                 if not torch.isfinite(loss):
                     raise FloatingPointError(f"non-finite training loss at step {step}")
                 train_loss += loss.item() / config.grad_accum_steps
@@ -233,7 +240,12 @@ def train(
             # Eval cadence is independent of max_steps so stopping/resuming does not
             # consume extra validation RNG draws at an intermediate final checkpoint.
             if val_tokens is not None and step % config.eval_interval == 0:
-                val_loss = evaluation_loop.evaluate(model, val_tokens, config, val_rng)
+                val_loss = evaluation_loop.evaluate(
+                    execution_model,
+                    val_tokens,
+                    config,
+                    val_rng,
+                )
                 record["val_loss"] = val_loss
                 if val_loss < best_val_loss:
                     best_val_loss, improved = val_loss, True
