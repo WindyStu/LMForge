@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+import copy
 import hashlib
 import json
-from pathlib import Path
 import random
 import time
-from typing import Mapping
+from collections.abc import Mapping
+from dataclasses import asdict
+from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
 import torch
 
+from .. import reproducibility
 from ..config import TrainConfig
 from ..nn.transformer import TransformerLM
-from .. import reproducibility
 from ..tokenization.tokenizer import BPE_tokenizer
 from . import checkpoint as checkpoint_io
 from . import evaluation as evaluation_loop
@@ -31,9 +32,7 @@ from .schedule import cosine_learning_rate_schedule
 def _validate_runtime_environment(config: TrainConfig) -> None:
     device = torch.device(config.device)
     if device.type == "cuda" and not torch.cuda.is_available():
-        raise ValueError(
-            "CUDA requested, but this Python environment has no available CUDA device"
-        )
+        raise ValueError("CUDA requested, but this Python environment has no available CUDA device")
     if device.type == "cuda" and config.precision == "bfloat16":
         with torch.cuda.device(device):
             if not torch.cuda.is_bf16_supported():
@@ -54,6 +53,25 @@ def _validate_data(data: npt.NDArray, config: TrainConfig) -> str:
     return digest.hexdigest()
 
 
+def _checkpoint_compatibility_config(values: Mapping[str, object]) -> dict[str, object]:
+    """Remove execution policies that do not change checkpoint tensor shapes."""
+
+    compatible = copy.deepcopy(dict(values))
+    for key in (
+        "max_steps",
+        "device",
+        "precision",
+        "log_interval",
+        "save_interval",
+    ):
+        compatible.pop(key, None)
+    model = compatible.get("model")
+    if isinstance(model, dict):
+        model.pop("attention_backend", None)
+    compatible.setdefault("deterministic", False)
+    return compatible
+
+
 def train(
     config: TrainConfig,
     train_tokens: npt.NDArray,
@@ -71,36 +89,22 @@ def train(
     _validate_runtime_environment(config)
     data_hashes = {
         "train": _validate_data(train_tokens, config),
-        "validation": (
-            _validate_data(val_tokens, config) if val_tokens is not None else None
-        ),
+        "validation": (_validate_data(val_tokens, config) if val_tokens is not None else None),
     }
-    if tokenizer is not None and set(tokenizer.vocab) != set(
-        range(config.model.vocab_size)
-    ):
-        raise ValueError(
-            "tokenizer IDs must exactly cover the configured model vocabulary"
-        )
+    if tokenizer is not None and set(tokenizer.vocab) != set(range(config.model.vocab_size)):
+        raise ValueError("tokenizer IDs must exactly cover the configured model vocabulary")
     output = Path(output_dir)
     if resume is None and any(
-        (output / name).exists()
-        for name in ("last.pt", "best.pt", "metrics.jsonl", "manifest.json")
+        (output / name).exists() for name in ("last.pt", "best.pt", "metrics.jsonl", "manifest.json")
     ):
-        raise FileExistsError(
-            "output contains a run; use --resume or a new output directory"
-        )
+        raise FileExistsError("output contains a run; use --resume or a new output directory")
     state = None
     if resume is not None:
         state = checkpoint_io.load_training_checkpoint(resume)
-        old_config, new_config = dict(state["config"]), asdict(config)
-        old_config.setdefault("deterministic", False)
-        for key in ("max_steps", "device", "log_interval", "save_interval"):
-            old_config.pop(key)
-            new_config.pop(key)
+        old_config = _checkpoint_compatibility_config(state["config"])
+        new_config = _checkpoint_compatibility_config(asdict(config))
         if old_config != new_config or state["data_sha256"] != data_hashes:
-            raise ValueError(
-                "resume configuration or training/validation data differ from checkpoint"
-            )
+            raise ValueError("resume configuration or training/validation data differ from checkpoint")
         if config.max_steps <= state["iteration"]:
             raise ValueError("max_steps must exceed the checkpoint iteration")
         saved_tok = state.get("tokenizer")
@@ -108,9 +112,7 @@ def train(
             tokenizer = BPE_tokenizer(**saved_tok)
         elif tokenizer is not None and tokenizer_state(tokenizer) != saved_tok:
             raise ValueError("resume tokenizer differs from checkpoint")
-        metrics_logging.validate_resume_metrics(
-            output / "metrics.jsonl", state["iteration"]
-        )
+        metrics_logging.validate_resume_metrics(output / "metrics.jsonl", state["iteration"])
 
     reproducibility.configure_reproducibility(config.seed, config.deterministic)
     train_rng = np.random.default_rng(config.seed)
@@ -123,9 +125,7 @@ def train(
         eps=config.eps,
         weight_decay=config.weight_decay,
     )
-    scaler = torch.amp.GradScaler(
-        "cuda", enabled=config.precision == "float16"
-    )
+    scaler = torch.amp.GradScaler("cuda", enabled=config.precision == "float16")
     iteration, best_val_loss = 0, float("inf")
     if state is not None:
         model.load_state_dict(state["model"])
@@ -141,9 +141,7 @@ def train(
         del state
 
     output.mkdir(parents=True, exist_ok=True)
-    (output / "config.json").write_text(
-        json.dumps(asdict(config), indent=2), encoding="utf-8"
-    )
+    (output / "config.json").write_text(json.dumps(asdict(config), indent=2), encoding="utf-8")
     datasets = {
         "train": {
             "sha256": data_hashes["train"],
@@ -165,9 +163,7 @@ def train(
         deterministic=config.deterministic,
         config=manifest_config if manifest_config is not None else asdict(config),
         datasets=datasets,
-        tokenizer_sha256=(
-            tokenizer_fingerprint(tokenizer) if tokenizer is not None else None
-        ),
+        tokenizer_sha256=(tokenizer_fingerprint(tokenizer) if tokenizer is not None else None),
         model_parameters=sum(parameter.numel() for parameter in model.parameters()),
         resume=resume,
     )
@@ -175,9 +171,7 @@ def train(
     model.train()
     device = torch.device(config.device)
     checkpoint = None
-    with metrics_logging.metrics_logger_context(
-        output / "metrics.jsonl", metrics_logger
-    ) as metrics:
+    with metrics_logging.metrics_logger_context(output / "metrics.jsonl", metrics_logger) as metrics:
         for step in range(iteration + 1, config.max_steps + 1):
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
@@ -232,33 +226,22 @@ def train(
                 "optimizer_step_skipped": skipped,
                 "train_seconds": seconds,
                 "tokens_per_second": (
-                    config.batch_size
-                    * config.grad_accum_steps
-                    * config.model.context_length
-                    / seconds
+                    config.batch_size * config.grad_accum_steps * config.model.context_length / seconds
                 ),
             }
             improved = False
             # Eval cadence is independent of max_steps so stopping/resuming does not
             # consume extra validation RNG draws at an intermediate final checkpoint.
             if val_tokens is not None and step % config.eval_interval == 0:
-                val_loss = evaluation_loop.evaluate(
-                    model, val_tokens, config, val_rng
-                )
+                val_loss = evaluation_loop.evaluate(model, val_tokens, config, val_rng)
                 record["val_loss"] = val_loss
                 if val_loss < best_val_loss:
                     best_val_loss, improved = val_loss, True
             metrics.log(
                 record,
-                emit_stdout=(
-                    step % config.log_interval == 0 or step == config.max_steps
-                ),
+                emit_stdout=(step % config.log_interval == 0 or step == config.max_steps),
             )
-            if (
-                step % config.save_interval == 0
-                or step == config.max_steps
-                or improved
-            ):
+            if step % config.save_interval == 0 or step == config.max_steps or improved:
                 checkpoint = checkpoint_io.create_training_checkpoint(
                     iteration=step,
                     config=asdict(config),
@@ -267,24 +250,14 @@ def train(
                     scaler=scaler.state_dict(),
                     best_val_loss=best_val_loss,
                     data_sha256=data_hashes,
-                    tokenizer=(
-                        tokenizer_state(tokenizer) if tokenizer is not None else None
-                    ),
+                    tokenizer=(tokenizer_state(tokenizer) if tokenizer is not None else None),
                     train_rng=train_rng.bit_generator.state,
                     val_rng=val_rng.bit_generator.state,
                     torch_rng=torch.get_rng_state(),
                     python_rng=random.getstate(),
-                    cuda_rng=(
-                        torch.cuda.get_rng_state_all()
-                        if device.type == "cuda"
-                        else None
-                    ),
+                    cuda_rng=(torch.cuda.get_rng_state_all() if device.type == "cuda" else None),
                 )
-                checkpoint_io.save_training_checkpoint(
-                    checkpoint, output / "last.pt"
-                )
+                checkpoint_io.save_training_checkpoint(checkpoint, output / "last.pt")
                 if improved:
-                    checkpoint_io.save_training_checkpoint(
-                        checkpoint, output / "best.pt"
-                    )
+                    checkpoint_io.save_training_checkpoint(checkpoint, output / "best.pt")
     return checkpoint

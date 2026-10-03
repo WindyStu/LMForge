@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark reference FP32 attention forward and forward-plus-backward."""
+"""Benchmark attention forward and forward-plus-backward strategies."""
 
 from __future__ import annotations
 
@@ -46,8 +46,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repetitions", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--precision", choices=("float32",), default="float32")
-    parser.add_argument("--attention-backend", choices=("reference", "naive"), default="reference")
+    parser.add_argument("--precision", choices=("float32", "bfloat16"), default="float32")
+    parser.add_argument(
+        "--attention-backend",
+        choices=("reference", "naive", "sdpa"),
+        default="reference",
+    )
     parser.add_argument("--d-model", type=int, default=256)
     parser.add_argument("--num-heads", type=int, default=4)
     parser.add_argument("--rope-theta", type=float, default=10000.0)

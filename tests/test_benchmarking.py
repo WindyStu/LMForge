@@ -128,6 +128,22 @@ def test_report_writes_json_and_flat_csv_with_environment_metadata(tmp_path: Pat
     ]
 
 
+def test_bfloat16_configuration_reports_actual_dtype() -> None:
+    from lmforge.benchmarking.workloads import training_configuration
+
+    configuration = training_configuration(
+        batch_size=2,
+        context_length=128,
+        warmup=3,
+        repetitions=4,
+        precision="bfloat16",
+        attention_backend="sdpa",
+    )
+
+    assert configuration["precision"] == "bfloat16"
+    assert configuration["dtype"] == "torch.bfloat16"
+
+
 def test_oom_result_records_failure_and_uses_cleanup_only_after_oom(monkeypatch) -> None:
     from lmforge.benchmarking import runner
 

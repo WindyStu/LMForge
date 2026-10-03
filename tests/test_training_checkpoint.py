@@ -1,7 +1,7 @@
 """Training checkpoint compatibility and round-trip contracts."""
 
-from io import BytesIO
 from dataclasses import replace
+from io import BytesIO
 
 import numpy as np
 import torch
@@ -160,6 +160,46 @@ def test_training_resume_loads_through_checkpoint_module(tmp_path, monkeypatch) 
     train(replace(config, max_steps=2), data, None, tmp_path, resume=resume_path)
 
     assert calls == [resume_path]
+
+
+def test_training_resume_allows_attention_backend_change(tmp_path) -> None:
+    from lmforge.training.train import train
+
+    model = ModelConfig(
+        vocab_size=8,
+        context_length=4,
+        d_model=8,
+        num_layers=1,
+        num_heads=2,
+        d_ff=16,
+        attention_backend="reference",
+    )
+    config = TrainConfig(
+        model=model,
+        max_steps=1,
+        batch_size=1,
+        grad_accum_steps=1,
+        warmup_steps=0,
+        save_interval=1,
+        log_interval=1,
+    )
+    data = np.arange(80) % 8
+    train(config, data, None, tmp_path)
+
+    resumed = train(
+        replace(
+            config,
+            model=replace(model, attention_backend="sdpa"),
+            max_steps=2,
+        ),
+        data,
+        None,
+        tmp_path,
+        resume=tmp_path / "last.pt",
+    )
+
+    assert resumed is not None
+    assert resumed["iteration"] == 2
 
 
 def test_generation_loads_through_checkpoint_module(tmp_path, monkeypatch) -> None:

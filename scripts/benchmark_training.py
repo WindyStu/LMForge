@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark or profile the reference FP32 LMForge training step."""
+"""Benchmark LMForge training execution strategies or profile the FP32 reference."""
 
 from __future__ import annotations
 
@@ -44,8 +44,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repetitions", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="cuda")
-    parser.add_argument("--precision", choices=("float32",), default="float32")
-    parser.add_argument("--attention-backend", choices=("reference", "naive"), default="reference")
+    parser.add_argument("--precision", choices=("float32", "bfloat16"), default="float32")
+    parser.add_argument(
+        "--attention-backend",
+        choices=("reference", "naive", "sdpa"),
+        default="reference",
+    )
     parser.add_argument("--vocab-size", type=int, default=8192)
     parser.add_argument("--d-model", type=int, default=256)
     parser.add_argument("--num-layers", type=int, default=4)

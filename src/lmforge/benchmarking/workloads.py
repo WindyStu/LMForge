@@ -1,8 +1,9 @@
-"""Reference FP32 training and attention benchmark workloads."""
+"""Training and attention benchmark workloads."""
 
 from __future__ import annotations
 
 import csv
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -11,20 +12,37 @@ import torch
 from ..nn.attention import MultiHeadSelfAttention
 from ..nn.transformer import TransformerLM
 from ..reproducibility import configure_reproducibility
+from ..training.evaluation import language_model_loss
 from ..training.loss import clip_gradients, cross_entropy
 from ..training.optimizer import AdamW
 from .runner import measure_phases
 
 
-def _validate_reference_fp32(device: str, precision: str, attention_backend: str) -> torch.device:
+def _validate_execution(
+    device: str,
+    precision: str,
+    attention_backend: str,
+) -> torch.device:
     target = torch.device(device)
     if target.type != "cuda" or not torch.cuda.is_available():
-        raise ValueError("Phase 2 baseline benchmarks require an available CUDA device")
-    if precision != "float32":
-        raise ValueError("P2-01 supports only float32")
-    if attention_backend not in {"reference", "naive"}:
-        raise ValueError("P2-01 supports only reference/naive attention")
+        raise ValueError("Phase 2 benchmarks require an available CUDA device")
+    if precision not in {"float32", "bfloat16"}:
+        raise ValueError("precision must be float32 or bfloat16")
+    if precision == "bfloat16" and not torch.cuda.is_bf16_supported():
+        raise ValueError("this CUDA device does not support bfloat16")
+    if attention_backend not in {"reference", "naive", "sdpa"}:
+        raise ValueError("attention backend must be reference, naive or sdpa")
     return target
+
+
+def _dtype_name(precision: str) -> str:
+    return f"torch.{precision}"
+
+
+def _autocast_context(device: torch.device, precision: str):
+    if precision == "float32":
+        return nullcontext()
+    return torch.autocast(device_type=device.type, dtype=torch.bfloat16)
 
 
 def _parameter_count(module: torch.nn.Module) -> int:
@@ -45,7 +63,7 @@ def training_configuration(
         "batch_size": batch_size,
         "context_length": context_length,
         "precision": precision,
-        "dtype": "torch.float32",
+        "dtype": _dtype_name(precision),
         "attention_backend": attention_backend,
         "warmup": warmup,
         "repetitions": repetitions,
@@ -71,7 +89,7 @@ def run_training_workload(
     warmup: int,
     repetitions: int,
 ) -> dict[str, Any]:
-    target = _validate_reference_fp32(device, precision, attention_backend)
+    target = _validate_execution(device, precision, attention_backend)
     configure_reproducibility(seed, deterministic=False)
     model = TransformerLM(
         vocab_size=vocab_size,
@@ -83,6 +101,7 @@ def run_training_workload(
         rope_theta=rope_theta,
         device=target,
         dtype=torch.float32,
+        attention_backend=attention_backend,
     )
     model.train()
     optimizer = AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8, weight_decay=0.1)
@@ -104,8 +123,8 @@ def run_training_workload(
 
     def step() -> None:
         optimizer.zero_grad(set_to_none=True)
-        logits = model(inputs)
-        loss = cross_entropy(logits.reshape(-1, vocab_size), targets.reshape(-1))
+        with _autocast_context(target, precision):
+            loss = language_model_loss(model, inputs, targets)
         loss.backward()
         clip_gradients(model.parameters(), 1.0)
         optimizer.step()
@@ -137,7 +156,7 @@ def attention_configuration(
         "batch_size": batch_size,
         "context_length": context_length,
         "precision": precision,
-        "dtype": "torch.float32",
+        "dtype": _dtype_name(precision),
         "attention_backend": attention_backend,
         "warmup": warmup,
         "repetitions": repetitions,
@@ -163,7 +182,7 @@ def run_attention_workload(
 ) -> dict[str, Any]:
     if operation not in {"forward_only", "forward_backward"}:
         raise ValueError(f"unknown attention operation: {operation}")
-    target = _validate_reference_fp32(device, precision, attention_backend)
+    target = _validate_execution(device, precision, attention_backend)
     configure_reproducibility(seed, deterministic=False)
     attention = MultiHeadSelfAttention(
         d_model,
@@ -173,6 +192,7 @@ def run_attention_workload(
         theta=rope_theta,
         device=target,
         dtype=torch.float32,
+        attention_backend=attention_backend,
     )
     attention.train(operation == "forward_backward")
     generator = torch.Generator(device=target).manual_seed(seed)
@@ -190,14 +210,15 @@ def run_attention_workload(
     if operation == "forward_only":
 
         def step() -> None:
-            with torch.no_grad():
+            with torch.no_grad(), _autocast_context(target, precision):
                 attention(inputs, token_positions=positions)
     else:
 
         def step() -> None:
             attention.zero_grad(set_to_none=True)
             inputs.grad = None
-            output = attention(inputs, token_positions=positions)
+            with _autocast_context(target, precision):
+                output = attention(inputs, token_positions=positions)
             output.sum().backward()
 
     return {
@@ -229,7 +250,7 @@ def profile_training_workload(
     warmup: int,
     repetitions: int,
 ) -> dict[str, Any]:
-    target = _validate_reference_fp32(device, "float32", "reference")
+    target = _validate_execution(device, "float32", "reference")
     configure_reproducibility(seed, deterministic=False)
     model = TransformerLM(
         vocab_size,
