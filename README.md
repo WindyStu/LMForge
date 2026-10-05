@@ -14,7 +14,8 @@ and reproducible measurements.
   cross-entropy, AdamW, gradient clipping, and cosine learning-rate scheduling.
 - **Correctness first:** numerical snapshots, tokenizer parity, checkpoint
   round trips, deterministic resume, CLI integration, and repository hygiene;
-  the current suite passes **129 tests** with 1 non-strict memory-test XPASS.
+  the Phase 2 implementation gate passes **150 tests**, with 4 skips and
+  1 non-strict memory-test XPASS.
 - **Measured tokenizer optimization:** on the reviewed 5 MiB benchmark, the
   optimized four-process trainer reduced median wall time by **71.66%** and
   median peak process-tree RSS by **55.43%**, while producing the same ordered
@@ -86,9 +87,9 @@ readable components:
 - explicit token-position propagation through every block;
 - full-context autoregressive sampling with temperature and nucleus filtering.
 
-Phase 1 intentionally uses the readable reference attention path. SDPA,
-`torch.compile`, BF16 benchmarking, and optional FlashAttention are not claimed
-as completed optimizations.
+The readable reference path remains the default. Phase 2 adds explicit SDPA,
+BF16, and `torch.compile` execution policies without changing checkpoint tensor
+shapes. Optional FlashAttention is not implemented or claimed.
 
 ## Training system
 
@@ -120,8 +121,95 @@ seconds in the reviewed benchmark while preserving the complete artifact.
 Profiler-instrumented durations are not used as benchmark wall time. The
 published tokenizer table uses independent non-profiled child processes.
 
-**Training-systems optimization benchmark is planned for Phase 2.** There is no
-published baseline/BF16/compile/SDPA training-performance table yet.
+### Reviewed Phase 2 training benchmark
+
+The publication benchmark used commit `fd11e1c3930e1e554d4ce77c26ebfc0c3976ec1c`
+on an NVIDIA GeForce RTX 3050 Laptop GPU (4 GiB), WSL2 Ubuntu 24.04,
+PyTorch 2.6.0+cu124, CUDA 12.4, cuDNN 90100, and seed 42. Every table cell is
+the mean of three independent runs; variation is the sample standard deviation
+across run-level steady-state medians. Each microbenchmark used one cold step,
+five warmup steps, and ten measured steps with CUDA synchronization. No best-run
+selection is used.
+
+The fixed-batch control matrix isolates context scaling. “Optimized” means
+SDPA + BF16 autocast + compiled model execution; parameters, optimizer state,
+loss, finite checks, clipping, and optimizer updates remain FP32.
+
+| Context | FLOPs/step | Reference FP32 tokens/s | Optimized tokens/s | Speedup | Peak allocated, ref → opt | MFU, ref → opt |
+|---:|---:|---:|---:|---:|---:|---:|
+| 128 | 4.43G | 4,286 ± 449 | 6,565 ± 1,872 | 1.53× | 172.4 → 172.4 MiB | 2.08% → 0.80% |
+| 256 | 9.26G | 7,467 ± 455 | 13,912 ± 2,027 | 1.86× | 190.0 → 184.1 MiB | 3.79% → 1.77% |
+| 512 | 20.13G | 16,142 ± 1,688 | 29,052 ± 265 | 1.80× | 243.7 → 214.4 MiB | 8.91% → 4.01% |
+| 1,024 | 46.71G | 22,909 ± 665 | 39,546 ± 1,380 | 1.73× | 388.4 → 329.1 MiB | 14.66% → 6.33% |
+| 2,048 | 119.19G | 19,095 ± 229 | 40,276 ± 367 | 2.11× | 791.4 → 662.5 MiB | 15.59% → 8.22% |
+
+Compile cold start averaged 64.19–68.86 seconds across contexts and is excluded
+from steady-state throughput. Eager SDPA+BF16 is not uniformly faster: relative
+to reference FP32 it measured 0.83× at context 128, 1.16× at 256, 0.87× at 512,
+1.17× at 1,024, and 1.21× at 2,048. The negative points are retained.
+
+![Phase 2 context throughput](reports/phase2/context-throughput.svg)
+
+![Phase 2 context memory](reports/phase2/context-memory.svg)
+
+The capacity scan repeated every successful batch and physical-memory boundary
+three times. SDPA+BF16 doubled the largest valid tested batch only at context
+512 (16 → 32); other power-of-two boundaries were unchanged. WSL unified
+memory can spill beyond the discrete GPU, so 30 boundary rows are recorded as
+`DeviceMemoryCapacityExceeded`, not hidden or described as native CUDA OOMs.
+
+| Context | Reference max batch / tokens/s | SDPA+BF16 max batch / tokens/s |
+|---:|---:|---:|
+| 128 | 128 / 33,022 ± 7 | 128 / 41,596 ± 52 |
+| 256 | 64 / 31,505 ± 3 | 64 / 39,581 ± 41 |
+| 512 | 16 / 37,066 ± 17 | 32 / 35,681 ± 38 |
+| 1,024 | 8 / 30,181 ± 37 | 8 / 38,395 ± 184 |
+| 2,048 | 4 / 21,106 ± 15 | 4 / 25,939 ± 59 |
+
+![Phase 2 batch scaling at context 512](reports/phase2/batch-scaling-c512.svg)
+
+The attention-only comparison confirms the profiler hypothesis but also shows
+that kernel choice is workload-dependent. SDPA forward+backward speedup ranged
+from 1.12× to 1.47×. Forward-only speedup rose to 3.12× at context 512, while
+the batch-1/context-2,048 point was a 0.97× negative result.
+
+![Phase 2 SDPA attention speedup](reports/phase2/attention-speedup.svg)
+
+Finally, both end-to-end configurations trained from scratch for 1,000
+optimizer steps on the frozen TinyStories train/validation arrays, three times
+each, with deterministic CUDA and identical seed/data sampling.
+
+| Configuration | FLOPs/step | Steady tokens/s | Step time | MFU | Cold first step | Final validation loss |
+|---|---:|---:|---:|---:|---:|---:|
+| Reference FP32 eager | 296.35G | 29,534 ± 251 | 277.88 ± 2.35 ms | 14.96% | 2.29 s | 2.679280 ± 0 |
+| SDPA + BF16 + compile | 296.35G | 45,616 ± 482 | 180.04 ± 1.91 ms | 5.77% | 58.52 s | 2.679786 ± 0 |
+
+The optimized long run is 1.54× faster after compilation; its final validation
+loss differs by +0.000506. All six runs completed 1,000 steps with finite
+losses and zero skipped optimizer steps.
+
+#### FLOPs and MFU method
+
+For batch `B`, context `T`, width `d`, FFN width `d_ff`, layers `L`, and
+vocabulary `V`, the dense model FLOPs estimate per training step is:
+
+```text
+3 × [L × (8BTd² + 4BT²d + 6BTd·d_ff) + 2BTdV]
+```
+
+The factor three approximates forward plus backward matrix multiplication.
+Embedding lookup, normalization, activation, softmax, loss, clipping, and
+optimizer elementwise work are excluded, so MFU is a model-FLOPs estimate, not
+whole-device utilization. `MFU = model FLOPs / step seconds / hardware peak`.
+
+The FP32 denominator is 7.127 TFLOP/s: 2,048 CUDA cores × the official maximum
+1.740 GHz boost × two FLOPs/FMA. The BF16 dense Tensor Core denominator is
+28.508 TFLOP/s, using the documented dense GA10x BF16:FP32 peak ratio of 4:1;
+sparsity is not assumed. The RTX 3050 Laptop core/clock range comes from
+[NVIDIA's laptop specification](https://www.nvidia.com/en-gb/geforce/laptops/30-series/),
+and the operation rates from the
+[NVIDIA Ampere GA102 architecture whitepaper](https://www.nvidia.com/content/PDF/nvidia-ampere-ga-102-gpu-architecture-whitepaper-v2.1.pdf).
+Raw run-level and aggregate data are in [reports/phase2](reports/phase2).
 
 ## TinyStories results
 
@@ -277,6 +365,37 @@ CUBLAS_WORKSPACE_CONFIG=:4096:8 uv run lmforge generate \
   --device cuda
 ```
 
+### 6. Reproduce Phase 2
+
+Start from the frozen benchmark commit and a clean artifact directory. The
+orchestrator preserves every status, uses fresh subprocesses, configures
+deterministic cuBLAS for long training, and gives each compiled configuration
+an isolated Inductor cache.
+
+```bash
+git checkout fd11e1c3930e1e554d4ce77c26ebfc0c3976ec1c
+git status --short  # expected: no output
+uv sync --locked --dev
+
+uv run python scripts/benchmark_phase2.py \
+  --output-dir artifacts/phase2-p2-03 --stage control
+uv run python scripts/benchmark_phase2.py \
+  --output-dir artifacts/phase2-p2-03 --stage capacity
+uv run python scripts/benchmark_phase2.py \
+  --output-dir artifacts/phase2-p2-03 --stage attention
+uv run python scripts/benchmark_phase2.py \
+  --output-dir artifacts/phase2-p2-03 --stage long
+
+uv run python scripts/summarize_phase2.py \
+  --input-dir artifacts/phase2-p2-03 \
+  --output-dir reports/phase2
+```
+
+The formal matrix uses seed 42, contexts 128/256/512/1,024/2,048,
+five warmups, ten measured steady-state steps, and three independent runs.
+The long verification uses the Phase 1 TinyStories arrays and their manifest
+hashes, context 256, batch 4, accumulation 8, and 1,000 optimizer steps.
+
 ## Tests
 
 ```bash
@@ -285,9 +404,12 @@ PYTHONUTF8=1 uv run pytest -q
 uv run python scripts/check_repository_hygiene.py
 ```
 
-The current gate is **129 passed, 1 xpassed, 4 warnings**. CI also verifies a
-locked CPU install, the installed CLI, scoped lint/format checks, and that no
-datasets, checkpoints, run logs, or local collaboration files are tracked.
+The Phase 2 implementation gate completed with **150 passed, 4 skipped,
+1 xpassed, 3 warnings** on CPU plus **7 passed** in the CUDA parity/BF16 subset.
+P2-03 adds focused benchmark-analysis tests without rerunning those already
+passed correctness suites. CI also verifies a locked CPU install, the installed
+CLI, scoped lint/format checks, and that no datasets, checkpoints, run logs, or
+local collaboration files are tracked.
 
 ## Project status and roadmap
 
@@ -295,11 +417,11 @@ Phase 1 is complete: installable package, unified CLI, typed configuration,
 focused training modules, reproducibility manifests, deterministic resume,
 repository hygiene, and a verified TinyStories run.
 
-Phase 2 is planned work: correctness-gated training-system benchmarks across
-reference attention and SDPA, FP32 and BF16, eager and `torch.compile`, several
-context lengths, synchronized timing, and peak GPU-memory reporting. Optional
-FlashAttention and KV-cache inference remain later work and are not presented
-as completed features.
+Phase 2 is complete: correctness-gated reference/SDPA, FP32/BF16, eager/compile,
+context scaling, capacity, attention, MFU, and long-training results are
+published above from retained machine-readable data. Optional FlashAttention
+and KV-cache inference remain later work and are not presented as completed
+features.
 
 ## Acknowledgements
 

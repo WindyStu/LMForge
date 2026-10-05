@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="450.0" y="30" text-anchor="middle" font-size="20" font-family="sans-serif">Batch-1 Peak Allocated Memory</text>
+<line x1="90" y1="55.00" x2="870" y2="55.00" stroke="#e5e7eb"/>
+<text x="80" y="59.00" text-anchor="end" font-size="12">927.52</text>
+<line x1="90" y1="133.00" x2="870" y2="133.00" stroke="#e5e7eb"/>
+<text x="80" y="137.00" text-anchor="end" font-size="12">742.02</text>
+<line x1="90" y1="211.00" x2="870" y2="211.00" stroke="#e5e7eb"/>
+<text x="80" y="215.00" text-anchor="end" font-size="12">556.51</text>
+<line x1="90" y1="289.00" x2="870" y2="289.00" stroke="#e5e7eb"/>
+<text x="80" y="293.00" text-anchor="end" font-size="12">371.01</text>
+<line x1="90" y1="367.00" x2="870" y2="367.00" stroke="#e5e7eb"/>
+<text x="80" y="371.00" text-anchor="end" font-size="12">185.50</text>
+<line x1="90" y1="445.00" x2="870" y2="445.00" stroke="#e5e7eb"/>
+<text x="80" y="449.00" text-anchor="end" font-size="12">0.00</text>
+<polyline points="454.00,277.97 90.00,372.50 870.00,83.89 142.00,363.67 246.00,345.11" fill="none" stroke="#2563eb" stroke-width="2"/>
+<circle cx="454.00" cy="277.97" r="3" fill="#2563eb"/>
+<circle cx="90.00" cy="372.50" r="3" fill="#2563eb"/>
+<circle cx="870.00" cy="83.89" r="3" fill="#2563eb"/>
+<circle cx="142.00" cy="363.67" r="3" fill="#2563eb"/>
+<circle cx="246.00" cy="345.11" r="3" fill="#2563eb"/>
+<line x1="650" y1="55" x2="675" y2="55" stroke="#2563eb" stroke-width="2"/>
+<text x="682" y="59" font-size="12" font-family="sans-serif">reference-bf16-eager</text>
+<polyline points="454.00,281.70 90.00,372.50 870.00,112.22 142.00,365.09 246.00,342.54" fill="none" stroke="#dc2626" stroke-width="2"/>
+<circle cx="454.00" cy="281.70" r="3" fill="#dc2626"/>
+<circle cx="90.00" cy="372.50" r="3" fill="#dc2626"/>
+<circle cx="870.00" cy="112.22" r="3" fill="#dc2626"/>
+<circle cx="142.00" cy="365.09" r="3" fill="#dc2626"/>
+<circle cx="246.00" cy="342.54" r="3" fill="#dc2626"/>
+<line x1="650" y1="75" x2="675" y2="75" stroke="#dc2626" stroke-width="2"/>
+<text x="682" y="79" font-size="12" font-family="sans-serif">reference-fp32-eager</text>
+<polyline points="454.00,306.60 90.00,372.50 870.00,166.43 142.00,367.59 246.00,354.84" fill="none" stroke="#059669" stroke-width="2"/>
+<circle cx="454.00" cy="306.60" r="3" fill="#059669"/>
+<circle cx="90.00" cy="372.50" r="3" fill="#059669"/>
+<circle cx="870.00" cy="166.43" r="3" fill="#059669"/>
+<circle cx="142.00" cy="367.59" r="3" fill="#059669"/>
+<circle cx="246.00" cy="354.84" r="3" fill="#059669"/>
+<line x1="650" y1="95" x2="675" y2="95" stroke="#059669" stroke-width="2"/>
+<text x="682" y="99" font-size="12" font-family="sans-serif">sdpa-bf16-compile</text>
+<polyline points="454.00,291.48 90.00,372.50 870.00,138.55 142.00,363.99 246.00,347.64" fill="none" stroke="#7c3aed" stroke-width="2"/>
+<circle cx="454.00" cy="291.48" r="3" fill="#7c3aed"/>
+<circle cx="90.00" cy="372.50" r="3" fill="#7c3aed"/>
+<circle cx="870.00" cy="138.55" r="3" fill="#7c3aed"/>
+<circle cx="142.00" cy="363.99" r="3" fill="#7c3aed"/>
+<circle cx="246.00" cy="347.64" r="3" fill="#7c3aed"/>
+<line x1="650" y1="115" x2="675" y2="115" stroke="#7c3aed" stroke-width="2"/>
+<text x="682" y="119" font-size="12" font-family="sans-serif">sdpa-bf16-eager</text>
+<polyline points="454.00,283.02 90.00,372.50 870.00,118.95 142.00,365.20 246.00,342.96" fill="none" stroke="#d97706" stroke-width="2"/>
+<circle cx="454.00" cy="283.02" r="3" fill="#d97706"/>
+<circle cx="90.00" cy="372.50" r="3" fill="#d97706"/>
+<circle cx="870.00" cy="118.95" r="3" fill="#d97706"/>
+<circle cx="142.00" cy="365.20" r="3" fill="#d97706"/>
+<circle cx="246.00" cy="342.96" r="3" fill="#d97706"/>
+<line x1="650" y1="135" x2="675" y2="135" stroke="#d97706" stroke-width="2"/>
+<text x="682" y="139" font-size="12" font-family="sans-serif">sdpa-fp32-eager</text>
+<text x="90.00" y="467" text-anchor="middle" font-size="12">128</text>
+<text x="142.00" y="467" text-anchor="middle" font-size="12">256</text>
+<text x="246.00" y="467" text-anchor="middle" font-size="12">512</text>
+<text x="454.00" y="467" text-anchor="middle" font-size="12">1024</text>
+<text x="870.00" y="467" text-anchor="middle" font-size="12">2048</text>
+<line x1="90" y1="55" x2="90" y2="445" stroke="#111827"/>
+<line x1="90" y1="445" x2="870" y2="445" stroke="#111827"/>
+<text x="450.0" y="500" text-anchor="middle" font-size="14">context length</text>
+<text x="20" y="260.0" text-anchor="middle" font-size="14" transform="rotate(-90 20 260.0)">MiB</text>
+</svg>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="450.0" y="30" text-anchor="middle" font-size="20" font-family="sans-serif">Context 512 Batch Scaling</text>
+<line x1="90" y1="55.00" x2="870" y2="55.00" stroke="#e5e7eb"/>
+<text x="80" y="59.00" text-anchor="end" font-size="12">52.03</text>
+<line x1="90" y1="133.00" x2="870" y2="133.00" stroke="#e5e7eb"/>
+<text x="80" y="137.00" text-anchor="end" font-size="12">41.62</text>
+<line x1="90" y1="211.00" x2="870" y2="211.00" stroke="#e5e7eb"/>
+<text x="80" y="215.00" text-anchor="end" font-size="12">31.22</text>
+<line x1="90" y1="289.00" x2="870" y2="289.00" stroke="#e5e7eb"/>
+<text x="80" y="293.00" text-anchor="end" font-size="12">20.81</text>
+<line x1="90" y1="367.00" x2="870" y2="367.00" stroke="#e5e7eb"/>
+<text x="80" y="371.00" text-anchor="end" font-size="12">10.41</text>
+<line x1="90" y1="445.00" x2="870" y2="445.00" stroke="#e5e7eb"/>
+<text x="80" y="449.00" text-anchor="end" font-size="12">0.00</text>
+<polyline points="90.00,311.72 467.42,167.16 115.16,243.85 165.48,204.86 266.13,178.43" fill="none" stroke="#2563eb" stroke-width="2"/>
+<circle cx="90.00" cy="311.72" r="3" fill="#2563eb"/>
+<circle cx="467.42" cy="167.16" r="3" fill="#2563eb"/>
+<circle cx="115.16" cy="243.85" r="3" fill="#2563eb"/>
+<circle cx="165.48" cy="204.86" r="3" fill="#2563eb"/>
+<circle cx="266.13" cy="178.43" r="3" fill="#2563eb"/>
+<line x1="650" y1="55" x2="675" y2="55" stroke="#2563eb" stroke-width="2"/>
+<text x="682" y="59" font-size="12" font-family="sans-serif">reference-fp32-eager</text>
+<polyline points="90.00,317.12 467.42,83.89 115.16,216.03 870.00,177.54 165.48,144.70 266.13,98.47" fill="none" stroke="#dc2626" stroke-width="2"/>
+<circle cx="90.00" cy="317.12" r="3" fill="#dc2626"/>
+<circle cx="467.42" cy="83.89" r="3" fill="#dc2626"/>
+<circle cx="115.16" cy="216.03" r="3" fill="#dc2626"/>
+<circle cx="870.00" cy="177.54" r="3" fill="#dc2626"/>
+<circle cx="165.48" cy="144.70" r="3" fill="#dc2626"/>
+<circle cx="266.13" cy="98.47" r="3" fill="#dc2626"/>
+<line x1="650" y1="75" x2="675" y2="75" stroke="#dc2626" stroke-width="2"/>
+<text x="682" y="79" font-size="12" font-family="sans-serif">sdpa-bf16-eager</text>
+<text x="90.00" y="467" text-anchor="middle" font-size="12">1</text>
+<text x="115.16" y="467" text-anchor="middle" font-size="12">2</text>
+<text x="165.48" y="467" text-anchor="middle" font-size="12">4</text>
+<text x="266.13" y="467" text-anchor="middle" font-size="12">8</text>
+<text x="467.42" y="467" text-anchor="middle" font-size="12">16</text>
+<text x="870.00" y="467" text-anchor="middle" font-size="12">32</text>
+<line x1="90" y1="55" x2="90" y2="445" stroke="#111827"/>
+<line x1="90" y1="445" x2="870" y2="445" stroke="#111827"/>
+<text x="450.0" y="500" text-anchor="middle" font-size="14">batch size</text>
+<text x="20" y="260.0" text-anchor="middle" font-size="14" transform="rotate(-90 20 260.0)">thousand tokens/s</text>
+</svg>

@@ -5,15 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from lmforge.benchmarking.environment import benchmark_metadata
-from lmforge.benchmarking.phase2 import formal_protocol
+from lmforge.benchmarking.phase2 import formal_protocol, long_training_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -148,14 +150,29 @@ def _run(command: dict[str, Any]) -> dict[str, Any]:
     destination = Path(command["output"])
     destination.mkdir(parents=True, exist_ok=False)
     started = datetime.now(UTC).isoformat()
-    completed = subprocess.run(
-        command["command"],
-        cwd=ROOT,
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
-    )
+    options = {
+        "cwd": ROOT,
+        "text": True,
+        "encoding": "utf-8",
+        "capture_output": True,
+    }
+    if command["stage"] == "long" and command["variant"].endswith("-compile"):
+        with tempfile.TemporaryDirectory(prefix="lmforge-long-inductor-") as cache:
+            environment = long_training_environment(
+                os.environ,
+                compile_model=True,
+                cache_directory=cache,
+            )
+            completed = subprocess.run(
+                command["command"], env=environment, check=False, **options
+            )
+    elif command["stage"] == "long":
+        environment = long_training_environment(os.environ, compile_model=False)
+        completed = subprocess.run(
+            command["command"], env=environment, check=False, **options
+        )
+    else:
+        completed = subprocess.run(command["command"], check=False, **options)
     (destination / "stdout.log").write_text(completed.stdout, encoding="utf-8")
     (destination / "stderr.log").write_text(completed.stderr, encoding="utf-8")
     result = {

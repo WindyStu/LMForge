@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import json
+import runpy
+import sys
 from pathlib import Path
 
 import pytest
@@ -220,7 +222,12 @@ def test_wsl_oversubscription_is_recorded_as_a_memory_capacity_boundary() -> Non
 
 @pytest.mark.parametrize(
     "name",
-    ["benchmark_training.py", "benchmark_attention.py", "benchmark_phase2.py"],
+    [
+        "benchmark_training.py",
+        "benchmark_attention.py",
+        "benchmark_phase2.py",
+        "summarize_phase2.py",
+    ],
 )
 def test_benchmark_scripts_are_independent_cli_entrypoints(name: str) -> None:
     script = Path(__file__).parents[1] / "scripts" / name
@@ -317,3 +324,66 @@ def test_publication_gate_requires_three_successful_independent_runs() -> None:
     assert publication_eligibility(["ok", "ok", "ok"], required_runs=3) is True
     assert publication_eligibility(["ok", "ok"], required_runs=3) is False
     assert publication_eligibility(["ok", "ok", "oom"], required_runs=3) is False
+
+
+def test_aggregate_records_keeps_failures_and_gates_incomplete_groups() -> None:
+    from lmforge.benchmarking.phase2 import aggregate_records
+
+    records = [
+        {"variant": "a", "context": 128, "run": 1, "status": "ok", "throughput": 10.0},
+        {"variant": "a", "context": 128, "run": 2, "status": "ok", "throughput": 12.0},
+        {"variant": "a", "context": 128, "run": 3, "status": "ok", "throughput": 14.0},
+        {"variant": "b", "context": 128, "run": 1, "status": "ok", "throughput": 20.0},
+        {"variant": "b", "context": 128, "run": 2, "status": "oom", "throughput": None},
+        {"variant": "b", "context": 128, "run": 3, "status": "ok", "throughput": 22.0},
+    ]
+
+    summaries = aggregate_records(
+        records,
+        group_fields=("variant", "context"),
+        metric_fields=("throughput",),
+        required_runs=3,
+    )
+
+    assert summaries[0]["readme_eligible"] is True
+    assert summaries[0]["throughput_mean"] == 12.0
+    assert summaries[0]["throughput_stdev"] == 2.0
+    assert summaries[1]["readme_eligible"] is False
+    assert summaries[1]["status_counts"] == {"ok": 2, "oom": 1}
+    assert summaries[1]["throughput_mean"] is None
+
+
+def test_long_training_environment_enables_deterministic_cublas_and_isolated_compile_cache() -> None:
+    from lmforge.benchmarking.phase2 import long_training_environment
+
+    environment = long_training_environment(
+        {"PATH": "/bin"},
+        compile_model=True,
+        cache_directory="/tmp/isolated-cache",
+    )
+
+    assert environment["PATH"] == "/bin"
+    assert environment["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+    assert environment["TORCHINDUCTOR_CACHE_DIR"] == "/tmp/isolated-cache"
+
+
+def test_phase2_orchestrator_runs_a_subprocess_and_records_logs(tmp_path) -> None:
+    script = Path(__file__).parents[1] / "scripts" / "benchmark_phase2.py"
+    namespace = runpy.run_path(str(script))
+    destination = tmp_path / "run-01"
+
+    result = namespace["_run"](
+        {
+            "stage": "control",
+            "variant": "test",
+            "run": 1,
+            "output": str(destination),
+            "command": [sys.executable, "-c", "print('ok')"],
+        }
+    )
+
+    assert result["status"] == "ok"
+    assert (destination / "stdout.log").read_text(encoding="utf-8") == "ok\n"
+    assert json.loads((destination / "execution.json").read_text(encoding="utf-8"))[
+        "returncode"
+    ] == 0
