@@ -373,7 +373,7 @@ deterministic cuBLAS for long training, and gives each compiled configuration
 an isolated Inductor cache.
 
 ```bash
-git checkout fd11e1c3930e1e554d4ce77c26ebfc0c3976ec1c
+git checkout 1c15b4fab18fb8882442b2e77cd2cd2c3e684b9f
 git status --short  # expected: no output
 uv sync --locked --dev
 
