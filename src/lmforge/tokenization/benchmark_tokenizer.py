@@ -308,7 +308,8 @@ def run_benchmark(
 
 
 def _safe_prefix(source: Path, destination: Path, byte_limit: int) -> None:
-    data = source.read_bytes()[:byte_limit]
+    with source.open("rb") as input_file:
+        data = input_file.read(byte_limit)
     text = data.decode("utf-8", errors="ignore")
     destination.write_text(text, encoding="utf-8", newline="")
 

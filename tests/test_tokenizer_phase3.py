@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+from pathlib import Path
 
 
 def test_naive_trainer_freezes_tie_breaking_and_non_overlapping_merges(tmp_path) -> None:
@@ -92,3 +93,19 @@ def test_phase3_profiler_is_separate_and_reports_hotspot_shares(tmp_path) -> Non
     assert report["python_allocation"]["peak_traced_bytes"] > 0
     assert (output_dir / "naive.prof").is_file()
     assert (output_dir / "profile.json").is_file()
+
+
+def test_deterministic_subset_reads_only_the_requested_prefix(tmp_path, monkeypatch) -> None:
+    from lmforge.tokenization.benchmark_tokenizer import _safe_prefix
+
+    source = tmp_path / "large.txt"
+    source.write_bytes("éabcdef".encode())
+    destination = tmp_path / "subset.txt"
+
+    def reject_unbounded_read_bytes(self: Path) -> bytes:
+        raise AssertionError("subset creation must not read the complete source")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_unbounded_read_bytes)
+    _safe_prefix(source, destination, 3)
+
+    assert destination.read_text(encoding="utf-8") == "éa"
