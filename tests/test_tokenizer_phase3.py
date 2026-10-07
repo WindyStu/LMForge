@@ -109,3 +109,30 @@ def test_deterministic_subset_reads_only_the_requested_prefix(tmp_path, monkeypa
     _safe_prefix(source, destination, 3)
 
     assert destination.read_text(encoding="utf-8") == "éa"
+
+
+def test_phase3_benchmark_compares_naive_and_production(tmp_path) -> None:
+    from lmforge.tokenization.benchmark_tokenizer import DatasetSpec, run_benchmark
+
+    corpus = tmp_path / "comparison.txt"
+    corpus.write_text("abab aaaa comparison\n" * 16, encoding="utf-8")
+    output_dir = tmp_path / "comparison"
+
+    report = run_benchmark(
+        datasets=[DatasetSpec("comparison", corpus, ())],
+        output_dir=output_dir,
+        vocab_size=268,
+        repetitions=2,
+        num_processes=1,
+        throughput_bytes=1024,
+        trainer="both",
+    )
+
+    assert len(report["runs"]) == 4
+    assert {row["trainer"] for row in report["summary"]} == {"naive", "production"}
+    assert report["comparisons"][0]["train_speedup"] > 0
+    assert report["comparisons"][0]["vocab_hash_match"] is True
+    assert report["comparisons"][0]["merges_hash_match"] is True
+    with (output_dir / "comparison.csv").open(encoding="utf-8", newline="") as source:
+        rows = list(csv.DictReader(source))
+    assert rows[0]["dataset"] == "comparison"

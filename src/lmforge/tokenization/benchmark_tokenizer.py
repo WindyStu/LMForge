@@ -236,49 +236,86 @@ def run_benchmark(
     trainer: str,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
+    trainers = ["naive", "production"] if trainer == "both" else [trainer]
     runs: list[dict[str, Any]] = []
     for dataset in datasets:
         for repetition in range(1, repetitions + 1):
-            result = _isolated_run(dataset, vocab_size, num_processes, throughput_bytes, trainer)
-            result["repetition"] = repetition
-            runs.append(result)
+            ordered_trainers = trainers if repetition % 2 else list(reversed(trainers))
+            for selected_trainer in ordered_trainers:
+                result = _isolated_run(dataset, vocab_size, num_processes, throughput_bytes, selected_trainer)
+                result["repetition"] = repetition
+                runs.append(result)
 
     summary: list[dict[str, Any]] = []
     correctness_passed = True
     for dataset in datasets:
-        selected = [run for run in runs if run["dataset"] == dataset.name]
-        hashes = {(run["vocab_sha256"], run["merges_sha256"]) for run in selected}
         reference = train_bpe_with_metrics(
             dataset.path, vocab_size, list(dataset.special_tokens), num_processes=num_processes
         )
         reference_hashes = (_vocab_hash(reference.vocab), _merges_hash(reference.merges))
-        passed = (
-            len(hashes) == 1
-            and next(iter(hashes)) == reference_hashes
-            and all(run["correctness"]["status"] == "passed" for run in selected)
-        )
-        correctness_passed &= passed
-        summary.append(
-            {
-                "dataset": dataset.name,
-                "runs": len(selected),
-                "train_seconds_median": _median(selected, "train_seconds"),
-                "train_seconds_mean": _mean(selected, "train_seconds"),
-                "train_seconds_stdev": _stdev(selected, "train_seconds"),
-                "train_mb_per_second_median": _median(selected, "train_mb_per_second"),
-                "encode_mb_per_second_median": _median(selected, "encode_mb_per_second"),
-                "encode_mb_per_second_stdev": _stdev(selected, "encode_mb_per_second"),
-                "decode_mb_per_second_median": _median(selected, "decode_mb_per_second"),
-                "decode_mb_per_second_stdev": _stdev(selected, "decode_mb_per_second"),
-                "peak_rss_bytes_median": _median(selected, "peak_rss_bytes"),
-                "peak_rss_bytes_stdev": _stdev(selected, "peak_rss_bytes"),
-                "vocab_sha256": selected[0]["vocab_sha256"],
-                "merges_sha256": selected[0]["merges_sha256"],
-                "correctness_status": "passed" if passed else "failed",
-            }
-        )
+        for selected_trainer in trainers:
+            selected = [run for run in runs if run["dataset"] == dataset.name and run["trainer"] == selected_trainer]
+            hashes = {(run["vocab_sha256"], run["merges_sha256"]) for run in selected}
+            passed = (
+                len(hashes) == 1
+                and next(iter(hashes)) == reference_hashes
+                and all(run["correctness"]["status"] == "passed" for run in selected)
+            )
+            correctness_passed &= passed
+            summary.append(
+                {
+                    "dataset": dataset.name,
+                    "trainer": selected_trainer,
+                    "runs": len(selected),
+                    "train_seconds_median": _median(selected, "train_seconds"),
+                    "train_seconds_mean": _mean(selected, "train_seconds"),
+                    "train_seconds_stdev": _stdev(selected, "train_seconds"),
+                    "train_mb_per_second_median": _median(selected, "train_mb_per_second"),
+                    "encode_mb_per_second_median": _median(selected, "encode_mb_per_second"),
+                    "encode_mb_per_second_stdev": _stdev(selected, "encode_mb_per_second"),
+                    "decode_mb_per_second_median": _median(selected, "decode_mb_per_second"),
+                    "decode_mb_per_second_stdev": _stdev(selected, "decode_mb_per_second"),
+                    "peak_rss_bytes_median": _median(selected, "peak_rss_bytes"),
+                    "peak_rss_bytes_stdev": _stdev(selected, "peak_rss_bytes"),
+                    "vocab_sha256": selected[0]["vocab_sha256"],
+                    "merges_sha256": selected[0]["merges_sha256"],
+                    "correctness_status": "passed" if passed else "failed",
+                }
+            )
+
+    comparisons: list[dict[str, Any]] = []
+    if trainer == "both":
+        for dataset in datasets:
+            naive = next(row for row in summary if row["dataset"] == dataset.name and row["trainer"] == "naive")
+            production = next(
+                row for row in summary if row["dataset"] == dataset.name and row["trainer"] == "production"
+            )
+            naive_seconds = float(naive["train_seconds_median"])
+            production_seconds = float(production["train_seconds_median"])
+            naive_rss = float(naive["peak_rss_bytes_median"])
+            production_rss = float(production["peak_rss_bytes_median"])
+            comparisons.append(
+                {
+                    "dataset": dataset.name,
+                    "naive_train_seconds_median": naive_seconds,
+                    "production_train_seconds_median": production_seconds,
+                    "train_speedup": naive_seconds / production_seconds,
+                    "naive_train_mb_per_second_median": naive["train_mb_per_second_median"],
+                    "production_train_mb_per_second_median": production["train_mb_per_second_median"],
+                    "naive_peak_rss_bytes_median": naive_rss,
+                    "production_peak_rss_bytes_median": production_rss,
+                    "peak_rss_reduction_percent": (naive_rss - production_rss) / naive_rss * 100,
+                    "vocab_hash_match": naive["vocab_sha256"] == production["vocab_sha256"],
+                    "merges_hash_match": naive["merges_sha256"] == production["merges_sha256"],
+                    "correctness_status": (
+                        "passed"
+                        if naive["correctness_status"] == production["correctness_status"] == "passed"
+                        else "failed"
+                    ),
+                }
+            )
     report = {
-        "schema": "lmforge-tokenizer-benchmark-v1",
+        "schema": "lmforge-tokenizer-benchmark-v2",
         "configuration": {
             "vocab_size": vocab_size,
             "repetitions": repetitions,
@@ -296,6 +333,7 @@ def run_benchmark(
         "correctness": {"status": "passed" if correctness_passed else "failed"},
         "runs": runs,
         "summary": summary,
+        "comparisons": comparisons,
     }
     (output_dir / "benchmark.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
@@ -304,6 +342,10 @@ def run_benchmark(
         writer = csv.DictWriter(destination, fieldnames=list(summary[0]) if summary else ["dataset"])
         writer.writeheader()
         writer.writerows(summary)
+    with (output_dir / "comparison.csv").open("w", encoding="utf-8", newline="") as destination:
+        writer = csv.DictWriter(destination, fieldnames=list(comparisons[0]) if comparisons else ["dataset"])
+        writer.writeheader()
+        writer.writerows(comparisons)
     return report
 
 
@@ -342,7 +384,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--num-processes", type=int, default=1)
     parser.add_argument("--throughput-bytes", type=int, default=1_048_576)
-    parser.add_argument("--trainer", choices=("naive", "production"), default="naive")
+    parser.add_argument("--trainer", choices=("naive", "production", "both"), default="naive")
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--dataset-name", help=argparse.SUPPRESS)
     parser.add_argument("--input", type=Path, help=argparse.SUPPRESS)
@@ -353,6 +395,8 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> None:
     arguments = _parser().parse_args()
     if arguments.worker:
+        if arguments.trainer == "both":
+            raise SystemExit("--worker requires one concrete trainer")
         result = _worker(
             DatasetSpec(arguments.dataset_name, arguments.input, tuple(arguments.special_token)),
             arguments.vocab_size,
