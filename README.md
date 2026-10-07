@@ -14,12 +14,12 @@ and reproducible measurements.
   cross-entropy, AdamW, gradient clipping, and cosine learning-rate scheduling.
 - **Correctness first:** numerical snapshots, tokenizer parity, checkpoint
   round trips, deterministic resume, CLI integration, and repository hygiene;
-  the Phase 2 implementation gate passes **150 tests**, with 4 skips and
-  1 non-strict memory-test XPASS.
-- **Measured tokenizer optimization:** on the reviewed 5 MiB benchmark, the
-  optimized four-process trainer reduced median wall time by **71.66%** and
-  median peak process-tree RSS by **55.43%**, while producing the same ordered
-  vocabulary and merges.
+  the complete CPU suite passes **166 tests**, with 4 CUDA skips and 1
+  non-strict memory-test XPASS.
+- **Measured tokenizer optimization:** on frozen 1 MiB corpus subsets, the
+  production BPE trainer is **7.90x faster on TinyStories** and **13.73x faster
+  on OpenWebText** than the full-rescan oracle, with identical vocabulary and
+  ordered-merge hashes.
 - **End-to-end TinyStories result:** a 7.60M-parameter model trained for
   **10,000 steps / 81.92M tokens** reached **1.80896 best validation loss** on
   an RTX 3050 4 GiB.
@@ -57,22 +57,28 @@ bounded lazy heap without changing merge semantics.
 
 ### Reviewed tokenizer benchmark
 
-| Implementation | Median wall time | Median peak RAM | Correctness |
-|---|---:|---:|---|
-| Baseline, 1 process | 2.874 s | 127.30 MiB | Matching artifact hash |
-| Optimized, 1 process | 1.045 s | 41.91 MiB | Matching artifact hash |
-| Baseline, 4 processes | 2.684 s | 273.52 MiB | Matching artifact hash |
-| Optimized, 4 processes | 0.761 s | 121.92 MiB | Matching artifact hash |
+| Deterministic 1 MiB subset | Naive full rescan | Production | Speedup | Peak RSS, naive to production | Correctness |
+|---|---:|---:|---:|---:|---|
+| TinyStories | 1.686 s | 0.213 s | 7.90x | 78.3 to 79.5 MiB (+1.5%) | Exact vocab + merges |
+| OpenWebText | 9.183 s | 0.669 s | 13.73x | 91.8 to 102.9 MiB (+12.1%) | Exact vocab + merges |
 
-Protocol: TinyStories 5 MiB fixture (5,242,880 bytes), vocabulary size 1,000,
-three independent child-process runs per cell, reported as the median. The
-machine was WSL2 on an Intel Core i7-12700H with 20 logical CPUs and Python
-3.12.13. Peak RAM is the maximum sampled sum of RSS for the root process and
-all recursive child processes. All 12 runs produced the same 1,000-entry
-vocabulary, 743 ordered merges, and artifact SHA-256.
+Protocol: deterministic UTF-8-safe 1,048,576-byte prefixes, vocabulary size
+384, one process, and three independent child-process runs per trainer and
+dataset, reported as the median. Trainer order alternated by repetition. The
+machine was WSL2 with 20 logical CPUs and Python 3.12.3. Peak RSS is the maximum
+sampled RSS of the worker process tree. Every run passed encode/decode
+round-trip and special-token gates; production and naive outputs had identical
+vocabulary and ordered-merges hashes.
 
-Machine-readable evidence: [reports/bpe_5mb_wsl.json](reports/bpe_5mb_wsl.json).
-The accompanying analysis is in
+The result supports a training-time claim, not a memory-reduction claim:
+production's maintained indexes consume more memory at this scale. Tiny fixture
+timings are excluded because process/import overhead dominates them, and the
+naive trainer was not run on complete OpenWebText.
+
+Machine-readable evidence:
+[reports/phase3/summary.json](reports/phase3/summary.json) and
+[reports/phase3/tokenizer-comparison.csv](reports/phase3/tokenizer-comparison.csv).
+The earlier 5 MiB implementation study remains available in
 [reports/bpe_optimization_report.md](reports/bpe_optimization_report.md).
 
 ## Model
@@ -113,10 +119,11 @@ shapes. Optional FlashAttention is not implemented or claimed.
 
 Optimization begins with a correctness oracle, then profiling, a bounded
 implementation change, output-parity tests, and finally isolated measurement.
-For BPE training, cProfile and stage timers identified repeated corpus
-materialization and pair initialization as the dominant costs. Replacing those
-representations reduced pair initialization from roughly 1.8 seconds to 0.02
-seconds in the reviewed benchmark while preserving the complete artifact.
+For BPE training, the frozen full-rescan profile attributes 58.51% of
+instrumented trainer time to repeated pair recounting and 39.74% to repeated
+whole-vocabulary merge scans. Production maintains pair counts and updates only
+affected words; the independent benchmark above confirms that this removes the
+dominant work while preserving the complete artifact.
 
 Profiler-instrumented durations are not used as benchmark wall time. The
 published tokenizer table uses independent non-profiled child processes.

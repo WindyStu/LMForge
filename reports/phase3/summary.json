@@ -1,0 +1,58 @@
+{
+  "schema": "lmforge-phase3-tokenizer-review-v1",
+  "benchmark_commit": "57cdbf3f00f843a9b1ddb9f7e742ec3f0e5b377a",
+  "dirty": false,
+  "environment": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "cpu_count": 20
+  },
+  "protocol": {
+    "input_bytes": 1048576,
+    "vocab_size": 384,
+    "repetitions_per_trainer_and_dataset": 3,
+    "num_processes": 1,
+    "aggregation": "median across independent child-process runs",
+    "run_order": "alternating naive and production order by repetition",
+    "correctness_gate": "round-trip, atomic special tokens, exact vocab hash, exact ordered-merges hash"
+  },
+  "results": [
+    {
+      "dataset": "tinystories_subset",
+      "naive_train_seconds_median": 1.6855082330000073,
+      "production_train_seconds_median": 0.2132591260000254,
+      "train_speedup": 7.903569073990328,
+      "naive_train_mb_per_second_median": 0.6221126538988525,
+      "production_train_mb_per_second_median": 4.9169103318930185,
+      "naive_peak_rss_bytes_median": 82108416,
+      "production_peak_rss_bytes_median": 83341312,
+      "production_peak_rss_change_percent": 1.5015464431806844,
+      "vocab_sha256": "b8aad19ad037a1a4de44639fa22d6b29bbf71f7f43a075a1d99b414aa90b4107",
+      "merges_sha256": "e70db0fc3033a00bec24201de3dbc214eeeb40b97c7b9ea54c948d961dbbdb2a",
+      "correctness_status": "passed"
+    },
+    {
+      "dataset": "openwebtext_subset",
+      "naive_train_seconds_median": 9.182524500999989,
+      "production_train_seconds_median": 0.6690223869999272,
+      "train_speedup": 13.725287343786581,
+      "naive_train_mb_per_second_median": 0.11419256217457505,
+      "production_train_mb_per_second_median": 1.5673257283692572,
+      "naive_peak_rss_bytes_median": 96288768,
+      "production_peak_rss_bytes_median": 107929600,
+      "production_peak_rss_change_percent": 12.089501446316147,
+      "vocab_sha256": "fc8e17bf40cc4e332d14287ab928f061f5bd48158b44d344e94bec7974fdd9bf",
+      "merges_sha256": "633cd5051126a772ac708628de240e52d62f2a3c96dbd82da56a043933026201",
+      "correctness_status": "passed"
+    }
+  ],
+  "profile_review": {
+    "source_commit": "495bdbc6adbaeb11176b725fcbbe7bff21bcc7a3",
+    "dataset": "openwebtext_subset",
+    "input_bytes": 262144,
+    "naive_repeated_pair_recount_share_percent": 58.51,
+    "naive_repeated_vocabulary_scan_share_percent": 39.74,
+    "production_hypothesis": "maintained pair counts plus affected-word updates remove repeated global recount and scan work"
+  },
+  "conclusion": "Production preserves the frozen BPE artifact exactly and is materially faster on both corpora. The speedup trades for higher peak RSS on this single-process 1 MiB workload, so no memory-reduction claim is made."
+}
