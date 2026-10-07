@@ -25,14 +25,16 @@ def profile_naive_trainer(
     output_dir.mkdir(parents=True, exist_ok=True)
     profile_path = output_dir / "naive.prof"
     profiler = cProfile.Profile()
-    tracemalloc.start()
     profiler.enable()
     _, _, metrics = train_bpe_naive(input_path, vocab_size, special_tokens, num_processes=num_processes)
     profiler.disable()
+    profiler.dump_stats(profile_path)
+
+    tracemalloc.start()
+    train_bpe_naive(input_path, vocab_size, special_tokens, num_processes=num_processes)
     current_traced, peak_traced = tracemalloc.get_traced_memory()
     snapshot = tracemalloc.take_snapshot()
     tracemalloc.stop()
-    profiler.dump_stats(profile_path)
 
     stats = pstats.Stats(profiler)
     hotspots = []
@@ -87,6 +89,7 @@ def profile_naive_trainer(
             "current_traced_bytes": current_traced,
             "peak_traced_bytes": peak_traced,
             "largest_live_allocations": allocations,
+            "separate_from_cpu_profile": True,
             "limitation": "tracemalloc attributes live Python allocations; process-tree RSS is measured by the benchmark",
         },
         "focus_evidence": {
@@ -103,10 +106,11 @@ def profile_naive_trainer(
             "pretokenization_cprofile_seconds": cumulative_for(
                 "pretokenize.py:count_pretokens", "pretokenize.py:_count_chunk"
             ),
-            "file_read_cprofile_seconds": cumulative_for(":read", "io.py:read"),
+            "file_read_cprofile_seconds": cumulative_for("read"),
             "multiprocessing_pickle_cprofile_seconds": cumulative_for("multiprocessing", "pickle"),
             "multiprocessing_active": num_processes > 1,
         },
+        "cprofile_total_seconds": stats.total_tt,
         "hotspots": hotspots,
     }
     (output_dir / "profile.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
