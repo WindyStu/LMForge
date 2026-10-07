@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import numpy as np
 
@@ -119,6 +119,7 @@ def _run_generate(args: argparse.Namespace) -> int:
         top_p=args.top_p,
         eos_token=args.eos_token,
         seed=args.seed,
+        use_kv_cache=args.kv_cache,
     )
     print(text)
     return 0
@@ -149,6 +150,8 @@ def _build_parser() -> argparse.ArgumentParser:
     generate.add_argument("--eos-token", default="<|endoftext|>")
     generate.add_argument("--seed", type=int, default=0)
     generate.add_argument("--device", default="cpu")
+    generate.add_argument("--kv-cache", action="store_true",
+                          help="prefill once and decode with KV cache; prompt + output must fit context")
     generate.set_defaults(handler=_run_generate)
     return parser
 

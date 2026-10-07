@@ -6,6 +6,7 @@ from einops import einsum, rearrange
 from jaxtyping import Bool, Float
 from torch import Tensor, nn
 
+from .kv_cache import LayerKVCache
 from .linear import Linear
 from .rope import RotaryPositionalEmbedding
 
@@ -97,12 +98,32 @@ class MultiHeadSelfAttention(nn.Module):
         self,
         in_features: Float[Tensor, " ... sequence_length d_in"],
         token_positions: Tensor | None = None,
+        *,
+        kv_cache: LayerKVCache | None = None,
     ):
         """
 
         :param in_features:
         :return:
         """
+        position_offset = 0
+        if kv_cache is not None:
+            if not torch.is_inference_mode_enabled():
+                raise ValueError("KV cache requires torch.inference_mode()")
+            if self.training:
+                raise ValueError("KV cache requires eval mode")
+            if token_positions is not None:
+                raise ValueError("token_positions are derived from KV cache current_length")
+            if in_features.ndim != 3:
+                raise ValueError("cached attention requires [batch, sequence, features]")
+            position_offset = kv_cache.current_length
+            if position_offset and in_features.shape[-2] != 1:
+                raise ValueError("cached decode requires a single new token")
+            kv_cache.validate(
+                batch_size=in_features.shape[0], num_heads=self.num_heads, head_dim=self.d_heads,
+                device=in_features.device, dtype=self.k_proj.weight.dtype,
+                new_length=in_features.shape[-2],
+            )
         q = self.q_proj(in_features)
         k = self.k_proj(in_features)
         v = self.v_proj(in_features)
@@ -113,7 +134,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         if self.rope is not None:
             if token_positions is None:
-                token_positions = torch.arange(in_features.shape[-2], device=in_features.device).expand(
+                token_positions = torch.arange(position_offset, position_offset + in_features.shape[-2], device=in_features.device).expand(
                     in_features.shape[:-1]
                 )
             # [batch, seq] -> [batch, 1, seq]
@@ -123,22 +144,26 @@ class MultiHeadSelfAttention(nn.Module):
             q_head = self.rope(q_head, rope_positions)
             k_head = self.rope(k_head, rope_positions)
 
+        if kv_cache is not None:
+            k_head, v_head = kv_cache.append(k_head, v_head)
+        # With one newest query, every stored key is visible. SDPA's ordinary
+        # non-square causal mask would incorrectly expose only the first key.
+        is_causal = position_offset == 0
         if self.attention_backend == "sdpa":
             attended = F.scaled_dot_product_attention(
                 q_head,
                 k_head,
                 v_head,
                 dropout_p=0.0,
-                is_causal=True,
+                is_causal=is_causal,
             )
         else:
             seq_len = in_features.shape[-2]
-            mask = torch.ones(
-                seq_len,
-                seq_len,
-                dtype=torch.bool,
-                device=in_features.device,
-            ).tril()
+            mask = None
+            if is_causal:
+                mask = torch.ones(
+                    seq_len, seq_len, dtype=torch.bool, device=in_features.device,
+                ).tril()
             attended = scaled_dot_product_attention(q_head, k_head, v_head, mask)
         multi_head = rearrange(
             attended,

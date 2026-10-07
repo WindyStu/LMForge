@@ -3,6 +3,7 @@ from torch import nn
 
 from .attention import MultiHeadSelfAttention
 from .ffn import SwiGLU
+from .kv_cache import KVCache, LayerKVCache
 from .linear import Embedding, Linear
 from .norm import RMSNorm
 
@@ -54,6 +55,8 @@ class TransformerBlock(nn.Module):
         self,
         in_features,
         token_positions: torch.Tensor | None = None,
+        *,
+        kv_cache: LayerKVCache | None = None,
     ):
         """
 
@@ -64,6 +67,7 @@ class TransformerBlock(nn.Module):
         in_features = in_features + self.attn(
             self.ln1(in_features),
             token_positions=token_positions,
+            **({} if kv_cache is None else {"kv_cache": kv_cache}),
         )
         in_features = in_features + self.ffn(self.ln2(in_features))
         return in_features
@@ -119,10 +123,53 @@ class TransformerLM(nn.Module):
             dtype=dtype,
         )
 
+    def allocate_kv_cache(self, *, batch_size, max_seq_len=None):
+        """Allocate request-owned storage on the model's device and dtype."""
+        limit = self.context_length if max_seq_len is None else max_seq_len
+        if type(limit) is not int or not 1 <= limit <= self.context_length:
+            raise ValueError("max_seq_len must be within the model context window")
+        return KVCache([
+            LayerKVCache(
+                batch_size=batch_size, num_heads=block.attn.num_heads,
+                max_seq_len=limit, head_dim=block.attn.d_heads,
+                device=block.attn.k_proj.weight.device, dtype=block.attn.k_proj.weight.dtype,
+            )
+            for block in self.layers
+        ])
+
+    def _validate_kv_cache(self, in_indices, token_positions, cache):
+        if not torch.is_inference_mode_enabled():
+            raise ValueError("KV cache requires torch.inference_mode()")
+        if any(module.training for module in self.modules()):
+            raise ValueError("KV cache requires eval mode")
+        if token_positions is not None:
+            raise ValueError("token_positions are derived from KV cache current_length")
+        if not isinstance(cache, KVCache) or len(cache.layers) != self.num_layers:
+            raise ValueError("KV cache must have one entry per model layer")
+        if in_indices.ndim != 2 or in_indices.shape[1] == 0:
+            raise ValueError("cached forward requires nonempty [batch, sequence] input")
+        length = cache.current_length
+        if length and in_indices.shape[1] != 1:
+            raise ValueError("cached decode requires a single new token")
+        if cache.max_seq_len > self.context_length:
+            raise ValueError("KV cache max_seq_len exceeds model context length")
+        for block, layer in zip(self.layers, cache.layers, strict=True):
+            if layer.max_seq_len != cache.max_seq_len:
+                raise ValueError("KV cache max_seq_len differs between layers")
+            if in_indices.device != block.attn.k_proj.weight.device:
+                raise ValueError("input device does not match model")
+            layer.validate(
+                batch_size=in_indices.shape[0], num_heads=block.attn.num_heads,
+                head_dim=block.attn.d_heads, device=in_indices.device,
+                dtype=block.attn.k_proj.weight.dtype, new_length=in_indices.shape[1],
+            )
+
     def forward(
         self,
         in_indices,
         token_positions: torch.Tensor | None = None,
+        *,
+        kv_cache: KVCache | None = None,
     ):
         """
 
@@ -130,19 +177,27 @@ class TransformerLM(nn.Module):
         :return:
         """
 
-        if token_positions is not None:
-            token_positions = token_positions[..., : self.context_length]
+        if kv_cache is not None:
+            self._validate_kv_cache(in_indices, token_positions, kv_cache)
+        else:
+            if token_positions is not None:
+                token_positions = token_positions[..., : self.context_length]
+            in_indices = in_indices[..., : self.context_length]
 
-        in_indices = in_indices[..., : self.context_length]
+        try:
+            in_indices = self.token_embeddings(in_indices)
+            for i in range(self.num_layers):
+                in_indices = self.layers[i](
+                    in_indices,
+                    token_positions=token_positions,
+                    **({} if kv_cache is None else {"kv_cache": kv_cache.layers[i]}),
+                )
 
-        in_indices = self.token_embeddings(in_indices)
-        for i in range(self.num_layers):
-            in_indices = self.layers[i](
-                in_indices,
-                token_positions=token_positions,
-            )
-
-        in_indices = self.ln_final(in_indices)
-        in_indices = self.lm_head(in_indices)
-
-        return in_indices
+            in_indices = self.ln_final(in_indices)
+            return self.lm_head(in_indices)
+        except Exception:
+            # A failed layer can leave earlier layers advanced. Invalidate the
+            # request rather than allow a partially updated cache to be reused.
+            if kv_cache is not None:
+                kv_cache.reset()
+            raise
