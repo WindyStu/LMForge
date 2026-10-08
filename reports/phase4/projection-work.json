@@ -1,0 +1,38 @@
+{
+  "measurement": "separate projection-shape instrumentation; not benchmark latency",
+  "provenance": "captured during P4-02 implementation before frozen clean measurement commit",
+  "weight_source": "seeded_random",
+  "precision": "float32",
+  "backend": "reference",
+  "batch_size": 1,
+  "max_seq_len": 2048,
+  "cuda_kernel_timing_claimed": false,
+  "rows": [
+    {
+      "implementation": "generate_naive",
+      "prompt": 128,
+      "generated": 64,
+      "projection_input_positions": {
+        "q_proj": 40832,
+        "k_proj": 40832,
+        "v_proj": 40832,
+        "ffn": 40832,
+        "lm_head": 10208
+      },
+      "profiled_time_is_not_benchmark_time": true
+    },
+    {
+      "implementation": "generate_with_kv_cache",
+      "prompt": 128,
+      "generated": 64,
+      "projection_input_positions": {
+        "q_proj": 764,
+        "k_proj": 764,
+        "v_proj": 764,
+        "ffn": 764,
+        "lm_head": 191
+      },
+      "profiled_time_is_not_benchmark_time": true
+    }
+  ]
+}
