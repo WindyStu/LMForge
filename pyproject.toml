@@ -50,6 +50,7 @@ line-length = 120
 
 [dependency-groups]
 dev = [
+    "matplotlib==3.10.0",
     "ruff",
     "scalene>=2.3.0",
 ]
